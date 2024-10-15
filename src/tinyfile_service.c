@@ -8,7 +8,7 @@
 #include <pthread.h>
 #include "tinyfile_service.h"
 
-int open[NUM_THREADS] = {0, 0, 0, 1};
+int open[NUM_THREADS] = {1, 1, 1, 1};
 
 
 /**
@@ -80,7 +80,7 @@ void* segment_function(void *arg) {
             }
             msg.msg_type = data->seg_id;
             result = append_chunks(result, shm_ptr->chunk_content, msg_length);
-            printf("%s\n", result);
+            // printf("%s\n", result);
             if (shm_ptr->is_final_chunk) {
                 finish = 1;
             }
@@ -90,7 +90,7 @@ void* segment_function(void *arg) {
             }
         }
 
-        printf("Data written to shared memory: %s\n", result);
+        // printf("Data written to shared memory: %s\n", result);
 
         strcpy(shm_ptr->chunk_content, "here");
 
@@ -108,9 +108,8 @@ void* segment_function(void *arg) {
             perror("shmctl IPC_RMID failed");
             return NULL;
         }
-
+        usleep(5000000);
         open[data->seg_id - 1] = 1;
-
         usleep(10000);
     }
     return NULL;
@@ -147,7 +146,7 @@ int main() {
 
     // * Develop function for assigning segment to client!
     while (1) {
-        printf("Main thread looping!\n");
+        // printf("Main thread looping!\n");
         if (msgrcv(msg_id, &msg_client, sizeof(message_t), 100, 0) == -1) {
             perror("msgrcv failed, main thread");
             exit(1);
@@ -155,11 +154,15 @@ int main() {
         msg_client.msg_type = 256;
 
         printf("Server received: %s\n", msg_client.msg_text);
-
-        for (int j = 0; j < NUM_THREADS; j++) {
-            if (open[j]) {
-                msg_client.destination_id = j + 1;
-                break;
+        int found = 0;
+        while (!found) {
+            for (int j = 0; j < NUM_THREADS; j++) {
+                printf("%d\n", j);
+                if (open[j]) {
+                    found = 1;
+                    msg_client.destination_id = j + 1;
+                    break;
+                }
             }
         }
 
