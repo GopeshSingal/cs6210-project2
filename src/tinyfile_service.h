@@ -2,7 +2,7 @@
 #define __TINYFILE_SERVICE_H
 
 #define SHM_KEY 1234
-#define SHM_SIZE 1024
+#define SHM_SIZE 6
 #define MSG_KEY 5678
 #define MSG_SIZE 128
 
@@ -16,6 +16,7 @@ typedef struct message {
     long msg_type;
     char msg_text[MSG_SIZE];
     int shm_id;
+    int full_msg_length;
 } message_t;
 
 #endif
