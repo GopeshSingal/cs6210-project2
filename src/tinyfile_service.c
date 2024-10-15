@@ -54,7 +54,7 @@ int main() {
 
         printf("Server received: %s\n", msg.msg_text);
         // * Initialize the shared memory for the message and return it to the client
-        shm_id = shmget(key, sizeof(shared_memory_chunk_t), 0666 | IPC_CREAT);
+        shm_id = shmget(key, sizeof(shared_memory_chunk_t), 0666 | IPC_CREAT | IPC_PRIVATE);
         if (shm_id == -1) {
             perror("shmget failed, 1");
             exit(1);
@@ -104,6 +104,11 @@ int main() {
         if (shmdt(shm_ptr) == -1) {
             perror("shmdt failed, 1");
             exit(1);
+        }
+        struct shmid_ds buf;
+        if (shmctl(shm_id, IPC_RMID, &buf) == -1) {
+            perror("shmctl IPC_RMID failed");
+            return 1;
         }
         usleep(10000);
     }
