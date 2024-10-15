@@ -1,13 +1,14 @@
 # Use https://makefiletutorial.com for makefile rules and help
 # Add targets for new file compilations as needed
 
-OBJECTS := tinyfile_service.o tinyfile_library.o tinyfile_client.o
+OBJECTS := tinyfile_service.o tinyfile_client.o
 # OBJECTS := 
 
 all: snappyc_test.o $(OBJECTS)
 
 $(OBJECTS): %.o: %.c
-	$(CC) -c $^ -o $@
+	# gcc $^ -o $@
+	gcc $^ tinyfile_library.c -o $@ 
 
 # Build snappyc_test.o, dependent on libsnappyc.so symlink
 snappyc_test.o: libsnappyc.so
@@ -33,7 +34,7 @@ clean:
 	rm -f ${CLEAN}
 	rm -f ${OBJECTS}
 # Uncomment line below if removing output dir
-	#@ rm -r ../bin/output
+	@#@ rm -r ../bin/output
 	@cd snappy-c; make clean
 
 # Run snappyc_test compression/uncompression

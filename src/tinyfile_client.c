@@ -5,26 +5,49 @@
 #include <stdlib.h>
 #include <string.h>
 #include "tinyfile_service.h"
+#include "tinyfile_library.h"
 
-void chunk_input_buffer(const char *buffer, size_t buffer_size, size_t chunk_size, char **chunk_buffers) {
-    size_t offset = 0;
-    size_t chunk_index = 0;
-    while (offset < buffer_size) {
-        size_t current_chunk_size = (buffer_size - offset < chunk_size) ? (buffer_size - offset) : chunk_size;
-        chunk_buffers[chunk_index] = (char *)malloc(current_chunk_size + 1); //! Remove '+ 1' when you don't need to print each chunk
-        strncpy(chunk_buffers[chunk_index], buffer + offset, current_chunk_size);
-        chunk_buffers[chunk_index][current_chunk_size] = '\0'; //! Remove this when you don't need to print each chunk
-        offset += current_chunk_size;
-        chunk_index++;
+    char * read_file(char* input_path) {
+    FILE *input_file = fopen(input_path, "rb");
+    if (!input_file) {
+        fprintf(stderr, "Error: Unable to open input file: %s\n", input_path);
+        return NULL;
     }
-    return;
+
+    // Get the file size
+    fseek(input_file, 0L, SEEK_END);
+    size_t input_size = ftell(input_file);
+    rewind(input_file);
+
+    // Allocate memory to read the input file
+    char *input_data = (char *)malloc(input_size);
+    if (!input_data) {
+        fprintf(stderr, "Error: Memory allocation failed.\n");
+        fclose(input_file);
+        return NULL;
+    }
+
+    // Read the input file into the buffer
+    size_t read_size = fread(input_data, 1, input_size, input_file);
+    fclose(input_file);
+
+    if (read_size != input_size) {
+        fprintf(stderr, "Error: Failed to read input file.\n");
+        free(input_data);
+        return NULL;
+    }
+    return input_data;
 }
 
 int main() {
     // * Initialization
     int msg_id, shm_id, seg_id;
     int chunk_size = SHM_SIZE - 1;
-    char buffer[] = "This is a test message for chunking!";
+    char * buffer = read_file("../bin/input/test.txt");
+    if (!buffer) {
+        perror("read_file failed");
+        exit(1);
+    }
     int num_chunks = ((strlen(buffer) + chunk_size - 1) / chunk_size);
     char **chunk_buffers = (char **) malloc(num_chunks * sizeof(char*));
     chunk_input_buffer(buffer, strlen(buffer), chunk_size, chunk_buffers);

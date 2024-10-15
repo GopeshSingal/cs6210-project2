@@ -53,7 +53,8 @@ void* segment_function(void *arg) {
         printf("Thread %d received: %s\n", data->seg_id, msg.msg_text);
         open[(data->seg_id) - 1] = 0;
 
-        shm_id = shmget(data->shm_key, sizeof(shared_memory_chunk_t), 0666 | IPC_CREAT);
+        shm_id = shmget(data->shm_key, sizeof(shared_memory_chunk_t), 0666 | IPC_CREAT | IPC_PRIVATE);
+      
         if (shm_id == -1) {
             perror("shmget failed on thread");
             exit(1);
@@ -100,6 +101,12 @@ void* segment_function(void *arg) {
         if (shmdt(shm_ptr) == -1) {
             perror("shmdt failed on thread");
             exit(1);
+        }
+      
+        struct shmid_ds buf;
+        if (shmctl(shm_id, IPC_RMID, &buf) == -1) {
+            perror("shmctl IPC_RMID failed");
+            return 1;
         }
 
         open[data->seg_id - 1] = 1;
