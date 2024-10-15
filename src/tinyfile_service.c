@@ -8,6 +8,8 @@
 #include <pthread.h>
 #include "tinyfile_service.h"
 
+int open[NUM_THREADS] = {0, 0, 0, 1};
+
 
 /**
 This method is used for combining the incoming buffer chunks together. 
@@ -36,7 +38,6 @@ void* segment_function(void *arg) {
     int recv_id = data->seg_id * 9;
     int msg_length, shm_id;
     message_t msg;
-    strcpy(msg.msg_text, "I am from a pthread");
     msg.msg_type = 1000;
     msg.destination_id = data->seg_id;
     while (1) {
@@ -50,6 +51,7 @@ void* segment_function(void *arg) {
         msg_length = msg.full_msg_length;
 
         printf("Thread %d received: %s\n", data->seg_id, msg.msg_text);
+        open[(data->seg_id) - 1] = 0;
 
         shm_id = shmget(data->shm_key, sizeof(shared_memory_chunk_t), 0666 | IPC_CREAT);
         if (shm_id == -1) {
@@ -75,9 +77,9 @@ void* segment_function(void *arg) {
                 perror("msgrcv failed, chunk receiver, on thread");
                 exit(1);
             }
-            msg.full_msg_length = data->seg_id;
+            msg.msg_type = data->seg_id;
             result = append_chunks(result, shm_ptr->chunk_content, msg_length);
-
+            printf("%s", result);
             if (shm_ptr->is_final_chunk) {
                 finish = 1;
             }
@@ -100,10 +102,8 @@ void* segment_function(void *arg) {
             exit(1);
         }
 
-        if (msgsnd(data->msg_id, &msg, sizeof(message_t), 0) == -1) {
-            perror("initial msgsnd failed");
-            exit(1);
-        }
+        open[data->seg_id - 1] = 1;
+
         usleep(10000);
     }
     return NULL;
@@ -149,14 +149,13 @@ int main() {
 
         printf("Server received: %s\n", msg_client.msg_text);
 
-        //! each pthread must send a initial thing into the queue then
-        if (msgrcv(msg_id, &msg_segment, sizeof(message_t), 1000, 0) == -1) {
-            perror("msgrcv failed, main thread communication with pthreads");
-            exit(1);
+        for (int j = 0; j < NUM_THREADS; j++) {
+            if (open[j]) {
+                msg_client.destination_id = j + 1;
+                break;
+            }
         }
-        printf("Server received: %s\n", msg_segment.msg_text);
-        
-        msg_client.destination_id = 1;
+
         if (msgsnd(msg_id, &msg_client, sizeof(message_t), 0) == -1) {
             perror("msgsnd failed, main thead");
             exit(1);

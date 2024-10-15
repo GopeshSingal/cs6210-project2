@@ -64,7 +64,7 @@ int main() {
         perror("msgrcv failed, 1");
         exit(1);
     }
-    msg.msg_type = 1;
+    msg.msg_type = seg_id * 9;
     shm_id = msg.shm_id;
     printf("Client received %d!\n", shm_id);
 
@@ -93,7 +93,7 @@ int main() {
             perror("msgrcv failed, chunk sender");
             exit(1);
         }
-        msg.msg_type = 1;
+        msg.msg_type = seg_id * 9;
     }
 
     // * Wait to receive notification from server that shared memory is safe to write
@@ -102,7 +102,7 @@ int main() {
         exit(1);
     }
     printf("Data written to shared memory: %s\n", shm_ptr->chunk_content);
-    msg.msg_type = 1;
+    msg.msg_type = seg_id * 9;
 
     // * Cleanup
     if (shmdt(shm_ptr) == -1) {

@@ -28,4 +28,6 @@ typedef struct segment {
     key_t shm_key;
 } segment_t;
 
+extern int open[NUM_THREADS];
+
 #endif
