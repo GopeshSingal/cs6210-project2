@@ -41,7 +41,7 @@
 
 int main() {
     // * Initialization
-    int msg_id, shm_id;
+    int msg_id, shm_id, seg_id;
     int chunk_size = SHM_SIZE - 1;
     char * buffer = read_file("../bin/input/test.txt");
     if (!buffer) {
@@ -58,7 +58,7 @@ int main() {
         exit(1);
     }
     message_t msg;
-    msg.msg_type = 1;
+    msg.msg_type = 100;
     msg.shm_id = 0;
     strcpy(msg.msg_text, "This string is from the client!");
 
@@ -69,13 +69,25 @@ int main() {
         exit(1);
     }
     printf("Client sent message\n");
-
-    // * Receive the shared memory key from the server
-    if (msgrcv(msg_id, &msg, sizeof(message_t), 2, 0) == -1) {      //! msg receive
+    if (msgrcv(msg_id, &msg, sizeof(message_t), 256, 0) == -1) {      //! msg receive
         perror("msgrcv failed, 1");
         exit(1);
     }
-    msg.msg_type = 1;
+    seg_id = msg.destination_id;
+    msg.msg_type = seg_id * 9;
+    printf("Sending a message!\n");
+    if (msgsnd(msg_id, &msg, sizeof(msg.msg_text), 0) == -1) {      //! msg send
+        perror("msgsnd failed, 1");
+        exit(1);
+    }
+    
+
+    // * Receive the shared memory key from the server
+    if (msgrcv(msg_id, &msg, sizeof(message_t), seg_id, 0) == -1) {      //! msg receive
+        perror("msgrcv failed, 1");
+        exit(1);
+    }
+    msg.msg_type = seg_id * 9;
     shm_id = msg.shm_id;
     printf("Client received %d!\n", shm_id);
 
@@ -100,20 +112,20 @@ int main() {
             exit(1);
         }
         // * Receive notice that the shared memory is ready (mainly used for synchronization between client and server)
-        if (msgrcv(msg_id, &msg, sizeof(message_t), 2, 0) == -1) {
+        if (msgrcv(msg_id, &msg, sizeof(message_t), seg_id, 0) == -1) {
             perror("msgrcv failed, chunk sender");
             exit(1);
         }
-        msg.msg_type = 1;
+        msg.msg_type = seg_id * 9;
     }
 
     // * Wait to receive notification from server that shared memory is safe to write
-    if (msgrcv(msg_id, &msg, sizeof(message_t), 2, 0) == -1) {
+    if (msgrcv(msg_id, &msg, sizeof(message_t), seg_id, 0) == -1) {
         perror("msgrcv failed, 2");
         exit(1);
     }
     printf("Data written to shared memory: %s\n", shm_ptr->chunk_content);
-    msg.msg_type = 1;
+    msg.msg_type = seg_id * 9;
 
     // * Cleanup
     if (shmdt(shm_ptr) == -1) {
