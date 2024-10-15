@@ -80,7 +80,7 @@ void* segment_function(void *arg) {
             }
             msg.msg_type = data->seg_id;
             result = append_chunks(result, shm_ptr->chunk_content, msg_length);
-            printf("%s", result);
+            printf("%s\n", result);
             if (shm_ptr->is_final_chunk) {
                 finish = 1;
             }
@@ -106,7 +106,7 @@ void* segment_function(void *arg) {
         struct shmid_ds buf;
         if (shmctl(shm_id, IPC_RMID, &buf) == -1) {
             perror("shmctl IPC_RMID failed");
-            return 1;
+            return NULL;
         }
 
         open[data->seg_id - 1] = 1;

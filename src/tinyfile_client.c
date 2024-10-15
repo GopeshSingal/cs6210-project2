@@ -7,7 +7,7 @@
 #include "tinyfile_service.h"
 #include "tinyfile_library.h"
 
-    char * read_file(char* input_path) {
+char * read_file(char* input_path) {
     FILE *input_file = fopen(input_path, "rb");
     if (!input_file) {
         fprintf(stderr, "Error: Unable to open input file: %s\n", input_path);
