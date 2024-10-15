@@ -1,2 +1,6 @@
 src/tinyfile_client
 .vscode/settings.json
+bin/output
+src/*.so*
+src/*.o
+
