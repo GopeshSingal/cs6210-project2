@@ -66,7 +66,7 @@ void* segment_function(void *arg) {
             exit(1);
         }
         msg.shm_id = shm_id;
-        if (msgsnd(data->msg_id, &msg, sizeof(message_t), 0) == -1) {
+        if (msgsnd(data->msg_id, &msg, sizeof(message_t) - sizeof(long), 0) == -1) {
             perror("msgsnd failed on thread");
             exit(1);
         }
@@ -84,17 +84,16 @@ void* segment_function(void *arg) {
             if (shm_ptr->is_final_chunk) {
                 finish = 1;
             }
-            if (msgsnd(data->msg_id, &msg, sizeof(message_t), 0) == -1) {
+            if (msgsnd(data->msg_id, &msg, sizeof(message_t) - sizeof(long), 0) == -1) {
                 perror("msgsnd failed, chunk receiver, on thread");
                 exit(1);
             }
         }
-
         // printf("Data written to shared memory: %s\n", result);
-
+        free(result);
         strcpy(shm_ptr->chunk_content, "here");
 
-        if (msgsnd(data->msg_id, &msg, sizeof(message_t), 0) == -1) {
+        if (msgsnd(data->msg_id, &msg, sizeof(message_t) - sizeof(long), 0) == -1) {
             perror("msgsnd failed on thread");
             exit(1);
         }
@@ -165,8 +164,8 @@ int main() {
                 }
             }
         }
-
-        if (msgsnd(msg_id, &msg_client, sizeof(message_t), 0) == -1) {
+        
+        if (msgsnd(msg_id, &msg_client, sizeof(message_t) - sizeof(long), 0) == -1) {
             perror("msgsnd failed, main thead");
             exit(1);
         }

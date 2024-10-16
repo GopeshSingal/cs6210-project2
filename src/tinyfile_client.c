@@ -51,6 +51,7 @@ int main() {
     int num_chunks = ((strlen(buffer) + chunk_size - 1) / chunk_size);
     char **chunk_buffers = (char **) malloc(num_chunks * sizeof(char*));
     chunk_input_buffer(buffer, strlen(buffer), chunk_size, chunk_buffers);
+    free(buffer);
     key_t key = ftok("my_message_queue_key", 65);
     msg_id = msgget(key, 0666);
     if (msg_id == -1) {
@@ -64,7 +65,7 @@ int main() {
 
     // * Send a message to the server to notify existence
     printf("Sending a message!\n");
-    if (msgsnd(msg_id, &msg, sizeof(msg.msg_text), 0) == -1) {      //! msg send
+    if (msgsnd(msg_id, &msg, sizeof(message_t) - sizeof(long), 0) == -1) {      //! msg send
         perror("msgsnd failed, 1");
         exit(1);
     }
@@ -76,7 +77,7 @@ int main() {
     seg_id = msg.destination_id;
     msg.msg_type = seg_id * 9;
     printf("Sending a message!\n");
-    if (msgsnd(msg_id, &msg, sizeof(msg.msg_text), 0) == -1) {      //! msg send
+    if (msgsnd(msg_id, &msg, sizeof(message_t) - sizeof(long), 0) == -1) {      //! msg send
         perror("msgsnd failed, 1");
         exit(1);
     }
@@ -107,7 +108,7 @@ int main() {
         }
         strcpy(shm_ptr->chunk_content, chunk_buffers[i]);
         // * Send notice that the shared memory is ready
-        if (msgsnd(msg_id, &msg, sizeof(message_t), 0) == -1) {
+        if (msgsnd(msg_id, &msg, sizeof(message_t) - sizeof(long), 0) == -1) {
             perror("msgsnd failed, chunk sender");
             exit(1);
         }
