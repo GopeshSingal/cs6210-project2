@@ -66,7 +66,6 @@ void* segment_function(void *arg) {
             exit(1);
         }
         msg.shm_id = shm_id;
-        msg.shm_ptr = shm_ptr;
         if (msgsnd(data->msg_id, &msg, sizeof(message_t) - sizeof(long), 0) == -1) {
             perror("msgsnd failed on thread");
             exit(1);
