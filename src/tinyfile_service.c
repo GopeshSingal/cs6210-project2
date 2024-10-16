@@ -43,7 +43,7 @@ void* segment_function(void *arg) {
     while (1) {
         printf("Segment %d is looping.\n", data->seg_id);
 
-        if (msgrcv(data->msg_id, &msg, sizeof(message_t), recv_id, 0) == -1) {
+        if (msgrcv(data->msg_id, &msg, sizeof(message_t) - sizeof(long), recv_id, 0) == -1) {
             perror("msgrcv failed on thread");
             exit(1);
         }
@@ -66,7 +66,8 @@ void* segment_function(void *arg) {
             exit(1);
         }
         msg.shm_id = shm_id;
-        if (msgsnd(data->msg_id, &msg, sizeof(message_t), 0) == -1) {
+        msg.shm_ptr = shm_ptr;
+        if (msgsnd(data->msg_id, &msg, sizeof(message_t) - sizeof(long), 0) == -1) {
             perror("msgsnd failed on thread");
             exit(1);
         }
@@ -74,7 +75,7 @@ void* segment_function(void *arg) {
         int finish = 0;
         char *result = NULL;
         while (!finish) {
-            if (msgrcv(data->msg_id, &msg, sizeof(message_t), recv_id, 0) == -1) {
+            if (msgrcv(data->msg_id, &msg, sizeof(message_t) - sizeof(long), recv_id, 0) == -1) {
                 perror("msgrcv failed, chunk receiver, on thread");
                 exit(1);
             }
@@ -84,17 +85,17 @@ void* segment_function(void *arg) {
             if (shm_ptr->is_final_chunk) {
                 finish = 1;
             }
-            if (msgsnd(data->msg_id, &msg, sizeof(message_t), 0) == -1) {
+            if (msgsnd(data->msg_id, &msg, sizeof(message_t) - sizeof(long), 0) == -1) {
                 perror("msgsnd failed, chunk receiver, on thread");
                 exit(1);
             }
         }
 
-        // printf("Data written to shared memory: %s\n", result);
+        printf("Data written to shared memory: %s\n", result);
 
         strcpy(shm_ptr->chunk_content, "here");
 
-        if (msgsnd(data->msg_id, &msg, sizeof(message_t), 0) == -1) {
+        if (msgsnd(data->msg_id, &msg, sizeof(message_t) - sizeof(long), 0) == -1) {
             perror("msgsnd failed on thread");
             exit(1);
         }
@@ -147,7 +148,7 @@ int main() {
     // * Develop function for assigning segment to client!
     while (1) {
         // printf("Main thread looping!\n");
-        if (msgrcv(msg_id, &msg_client, sizeof(message_t), 100, 0) == -1) {
+        if (msgrcv(msg_id, &msg_client, sizeof(message_t) - sizeof(long), 100, 0) == -1) {
             perror("msgrcv failed, main thread");
             exit(1);
         }
@@ -157,7 +158,6 @@ int main() {
         int found = 0;
         while (!found) {
             for (int j = 0; j < NUM_THREADS; j++) {
-                printf("%d\n", j);
                 if (open[j]) {
                     found = 1;
                     msg_client.destination_id = j + 1;
@@ -166,7 +166,7 @@ int main() {
             }
         }
 
-        if (msgsnd(msg_id, &msg_client, sizeof(message_t), 0) == -1) {
+        if (msgsnd(msg_id, &msg_client, sizeof(message_t) - sizeof(long), 0) == -1) {
             perror("msgsnd failed, main thead");
             exit(1);
         }
