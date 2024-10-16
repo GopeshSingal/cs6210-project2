@@ -7,6 +7,7 @@
 #include <string.h>
 #include <pthread.h>
 #include "tinyfile_service.h"
+#include "tinyfile_library.h"
 
 int open[NUM_THREADS] = {1, 1, 1, 1};
 
@@ -90,7 +91,22 @@ void* segment_function(void *arg) {
             }
         }
 
-        printf("Data written to shared memory: %s\n", result);
+
+        // printf("Data written to shared memory: %s\n", result);
+        // printf("size in server: %lu\n", strlen(result));
+        size_t compressed_size;
+        char * compressed_data = compress_file(result, &compressed_size);
+        free(result);
+        printf("strlen %zu vs compresed_size %zu\n", strlen(compressed_data), compressed_size);
+        // * Initialize chunks
+        int chunk_size = SHM_SIZE - 1;
+        int num_chunks = ((compressed_size + chunk_size - 1) / chunk_size);
+        char** chunk_buffers = (char**) malloc(num_chunks * sizeof(char*));
+        for (int i = 0; i < num_chunks; i++) {
+            chunk_buffers[i] = (char*) malloc(chunk_size);
+        }
+        chunk_input_buffer(compressed_data, compressed_size, chunk_size, chunk_buffers);
+        free(compressed_data);
 
         strcpy(shm_ptr->chunk_content, "here");
 

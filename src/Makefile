@@ -4,15 +4,13 @@
 OBJECTS := tinyfile_service.o tinyfile_client.o
 # OBJECTS := 
 
-all: snappyc_test.o $(OBJECTS)
+all: libsnappyc.so $(OBJECTS)
 
 $(OBJECTS): %.o: %.c
 	# gcc $^ -o $@
-	gcc $^ tinyfile_library.c -o $@ 
+	gcc $^ tinyfile_library.c -o $@ -L./ -lsnappyc
 
 # Build snappyc_test.o, dependent on libsnappyc.so symlink
-snappyc_test.o: libsnappyc.so
-	gcc snappyc_test.c -o $@ -L./ -lsnappyc
 
 # Create symlink of libsnappyc.so.1 and 
 # set library path variable
