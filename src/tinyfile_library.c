@@ -49,9 +49,8 @@ char * compress_file(const char *input_data, size_t * compressed_size) {
     
     int status = snappy_compress(&a, input_data, input_size, compressed_data, compressed_size);
     snappy_free_env(&a);
-    printf("SIZEEEEE %zu\n", *compressed_size);
+    // printf("File compressed successfully: \n");
     return compressed_data;
-    printf("File compressed successfully: \n");
 }
 
 /* Function:  uncompress_buffer 

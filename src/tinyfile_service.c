@@ -22,13 +22,23 @@ Args:
  */
 char* append_chunks(char *result, const char *buffer, int full_length) {
     if (result == NULL) {
-        result = malloc(full_length + 1);
+        if (full_length < SHM_SIZE) {
+            result = malloc(full_length);
+            strncpy(result, buffer, full_length);
+        } else {
+            result = malloc(SHM_SIZE);
+            strncpy(result, buffer, SHM_SIZE);
+        }
         if (result == NULL) {
             fprintf(stderr, "malloc failed");
             exit(1);
         }
-        strcpy(result, buffer);
     } else {
+        result = realloc(result, strlen(result) + SHM_SIZE + 1);
+        if (result == NULL) {
+            fprintf(stderr, "realloc failed");
+            exit(1);
+        }
         strcat(result, buffer);
     }
     return result;
@@ -39,7 +49,7 @@ void* segment_function(void *arg) {
     int recv_id = data->seg_id * 9;
     int msg_length, shm_id;
     message_t msg;
-    msg.msg_type = 1000;
+    memset(&msg, 0, sizeof(msg));
     msg.destination_id = data->seg_id;
     while (1) {
         printf("Segment %d is looping.\n", data->seg_id);
@@ -48,14 +58,14 @@ void* segment_function(void *arg) {
             perror("msgrcv failed on thread");
             exit(1);
         }
-        msg.msg_type = data->seg_id;
         msg_length = msg.full_msg_length;
+        memset(&msg, 0, sizeof(msg));
+        msg.mtype = data->seg_id;
 
-        printf("Thread %d received: %s\n", data->seg_id, msg.msg_text);
-        open[(data->seg_id) - 1] = 0;
+        // printf("Thread %d received: %s\n", data->seg_id, msg.msg_text);
 
         shm_id = shmget(data->shm_key, sizeof(shared_memory_chunk_t), 0666 | IPC_CREAT | IPC_PRIVATE);
-      
+        // printf("shm id in service 1: %d\n", shm_id);
         if (shm_id == -1) {
             perror("shmget failed on thread");
             exit(1);
@@ -63,12 +73,12 @@ void* segment_function(void *arg) {
 
         shared_memory_chunk_t* shm_ptr = (shared_memory_chunk_t*) shmat(shm_id, NULL, 0);
         if (shm_ptr == (shared_memory_chunk_t*) -1) {
-            perror("shmat failed on thread");
+            perror("shmat failed on thread SERVER");
             exit(1);
         }
         msg.shm_id = shm_id;
         if (msgsnd(data->msg_id, &msg, sizeof(message_t) - sizeof(long), 0) == -1) {
-            perror("msgsnd failed on thread");
+            perror("msgsnd failed on thread SERVER");
             exit(1);
         }
 
@@ -79,7 +89,8 @@ void* segment_function(void *arg) {
                 perror("msgrcv failed, chunk receiver, on thread");
                 exit(1);
             }
-            msg.msg_type = data->seg_id;
+            memset(&msg, 0, sizeof(msg));
+            msg.mtype = data->seg_id;
             result = append_chunks(result, shm_ptr->chunk_content, msg_length);
             // printf("%s\n", result);
             if (shm_ptr->is_final_chunk) {
@@ -91,15 +102,12 @@ void* segment_function(void *arg) {
             }
         }
 
-
-        // printf("Data written to shared memory: %s\n", result);
-        // printf("size in server: %lu\n", strlen(result));
         size_t compressed_size;
         char * compressed_data = compress_file(result, &compressed_size);
         free(result);
-        printf("strlen %zu vs compresed_size %zu\n", strlen(compressed_data), compressed_size);
+
         // * Initialize chunks
-        int chunk_size = SHM_SIZE - 1;
+        int chunk_size = SHM_SIZE;
         int num_chunks = ((compressed_size + chunk_size - 1) / chunk_size);
         char** chunk_buffers = (char**) malloc(num_chunks * sizeof(char*));
         for (int i = 0; i < num_chunks; i++) {
@@ -111,7 +119,7 @@ void* segment_function(void *arg) {
         strcpy(shm_ptr->chunk_content, "here");
 
         if (msgsnd(data->msg_id, &msg, sizeof(message_t) - sizeof(long), 0) == -1) {
-            perror("msgsnd failed on thread");
+            perror("msgsnd failed on thread second fail");
             exit(1);
         }
         if (shmdt(shm_ptr) == -1) {
@@ -131,7 +139,7 @@ void* segment_function(void *arg) {
     return NULL;
 }
 
-int main() {
+int main(int argc, char* argv[]) {
     int msg_id;
     message_t msg_client;
     message_t msg_segment;
@@ -140,10 +148,15 @@ int main() {
 
     // * The message queue is initialized
     key_t key = ftok("my_message_queue_key", 65);
+    message_t msgc;
     msg_id = msgget(key, 0666 | IPC_CREAT);
     if (msg_id == -1) {
         perror("msgget failed");
         exit(1);
+    }
+
+    while (msgrcv(msg_id, &msgc, sizeof(message_t) - sizeof(long), 0, IPC_NOWAIT) != -1) {
+        printf("Cleared extra message!\n");
     }
     
     for (int i = 0; i < NUM_THREADS; i++) {
@@ -163,19 +176,20 @@ int main() {
     // * Develop function for assigning segment to client!
     while (1) {
         // printf("Main thread looping!\n");
-        if (msgrcv(msg_id, &msg_client, sizeof(message_t) - sizeof(long), 100, 0) == -1) {
+        if (msgrcv(msg_id, &msg_client, sizeof(message_t) - sizeof(long), SERVER_ACCESS_MTYPE, 0) == -1) {
             perror("msgrcv failed, main thread");
             exit(1);
         }
-        msg_client.msg_type = 256;
+        msg_client.mtype = SERVER_MTYPE;
 
-        printf("Server received: %s\n", msg_client.msg_text);
+        // printf("Server received: %s\n", msg_client.msg_text);
         int found = 0;
         while (!found) {
             for (int j = 0; j < NUM_THREADS; j++) {
                 if (open[j]) {
                     found = 1;
                     msg_client.destination_id = j + 1;
+                    open[j] = 0;
                     break;
                 }
             }

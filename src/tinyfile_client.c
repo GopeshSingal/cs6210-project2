@@ -8,7 +8,6 @@
 #include <pthread.h>
 #include <dirent.h>
 #include "tinyfile_client.h"
-#include "tinyfile_service.h"
 #include "tinyfile_library.h"
 
 char * read_file(char* input_path) {
@@ -79,7 +78,7 @@ void* async_function(void* arg) {
     }
 
     // * Initialize chunks
-    int chunk_size = SHM_SIZE - 1;
+    int chunk_size = SHM_SIZE;
     int num_chunks = ((strlen(buffer) + chunk_size - 1) / chunk_size);
     char** chunk_buffers = (char**) malloc(num_chunks * sizeof(char*));
     for (int i = 0; i < num_chunks; i++) {
@@ -97,40 +96,45 @@ void* async_function(void* arg) {
 
     // * Initialize message, then send and receive with server
     message_t msg;
-    msg.msg_type = 100;
+    memset(&msg, 0, sizeof(msg));
+    msg.mtype = SERVER_ACCESS_MTYPE;
     msg.full_msg_length = strlen(buffer);
     msg.shm_id = 0;
+
     strcpy(msg.msg_text, "This string is from client");
     if (msgsnd(msg_id, &msg, sizeof(message_t) - sizeof(long), 0) == -1) {
         perror("msgsnd to server failed");
         exit(1);
     }
-    if (msgrcv(msg_id, &msg, sizeof(message_t) - sizeof(long), 256, 0) == -1) {
+
+    if (msgrcv(msg_id, &msg, sizeof(message_t) - sizeof(long), SERVER_MTYPE, 0) == -1) {
         perror("msgrcv failed");
         exit(1);
     }
+    
 
     seg_id = msg.destination_id;
+    memset(&msg, 0, sizeof(msg));
     recv_id = seg_id * 9;
-    msg.msg_type = recv_id;
+    msg.mtype = recv_id;
     if (msgsnd(msg_id, &msg, sizeof(message_t) - sizeof(long), 0) == -1) {
         perror("msgsnd to thread failed");
         exit(1);
     }
-
+    
     // * Receive the shared memory access
     if (msgrcv(msg_id, &msg, sizeof(message_t) - sizeof(long), seg_id, 0) == -1) { 
         perror("msgrcv failed, 1");
         exit(1);
     }
-    msg.msg_type = recv_id;
     shm_id = msg.shm_id;
+    memset(&msg, 0, sizeof(msg));
+    msg.mtype = recv_id;
     shared_memory_chunk_t* shm_ptr = (shared_memory_chunk_t*) shmat(shm_id, NULL, 0);
     if (shm_ptr == (shared_memory_chunk_t*) -1) {
-        perror("shmat failed on thread");
+        perror("shmat failed on thread CLIENT");
         exit(1);
     }
-    printf("Client received %d!\n", shm_id);
 
     // * Send each chunk one-by-one
     shm_ptr->is_final_chunk = 0;
@@ -140,35 +144,35 @@ void* async_function(void* arg) {
         } else {
             shm_ptr->is_final_chunk = 0;
         }
-        strcpy(shm_ptr->chunk_content, chunk_buffers[i]);
+        strncpy(shm_ptr->chunk_content, chunk_buffers[i], SHM_SIZE);
         // * Send notice that the shared memory is ready
         if (msgsnd(msg_id, &msg, sizeof(message_t) - sizeof(long), 0) == -1) {
             perror("msgsnd failed, chunk sender");
             exit(1);
         }
+        free(chunk_buffers[i]);
         // * Receive notice that the shared memory is ready (mainly used for synchronization between client and server)
         if (msgrcv(msg_id, &msg, sizeof(message_t) - sizeof(long), seg_id, 0) == -1) {
             perror("msgrcv failed, chunk sender");
             exit(1);
         }
-        msg.msg_type = recv_id;
+        memset(&msg, 0, sizeof(msg));
+        msg.mtype = recv_id;
     }
+    free(chunk_buffers);
 
     if (msgrcv(msg_id, &msg, sizeof(message_t) - sizeof(long), seg_id, 0) == -1) {
         perror("msgrcv failed");
         exit(1);
     }
-    printf("Data written to shared memory: %s\n", shm_ptr->chunk_content);
-    msg.msg_type = recv_id;
+    // printf("Data written to shared memory: %s\n", shm_ptr->chunk_content);
+    memset(&msg, 0, sizeof(msg));
+    msg.mtype = recv_id;
     // * Cleanup
     if (shmdt(shm_ptr) == -1) {
         perror("shmdt failed, 1");
         exit(1);
     }
-    for (int i = 0; i < num_chunks; i++) {
-        free(chunk_buffers[i]);
-    }
-    free(chunk_buffers);
     printf("Thread %d is finished!\n", data->thread_id);
 }
 
@@ -187,7 +191,6 @@ int main(int argc, char *argv[]) {
 
     const char* files_path = argv[2];
     file_count = files_in_dir(files_path, files);
-    printf("File count: %d\n", file_count);
     if (file_count == 0) {
         fprintf(stderr, "No files found in directory");
         return 1;

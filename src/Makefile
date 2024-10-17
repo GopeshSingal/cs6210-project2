@@ -8,7 +8,7 @@ all: libsnappyc.so $(OBJECTS)
 
 $(OBJECTS): %.o: %.c
 	# gcc $^ -o $@
-	gcc $^ tinyfile_library.c -o $@ -L./ -lsnappyc
+	gcc -g $^ tinyfile_library.c -o $@ -L./ -lsnappyc
 
 # Build snappyc_test.o, dependent on libsnappyc.so symlink
 
