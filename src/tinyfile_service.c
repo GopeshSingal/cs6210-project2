@@ -6,10 +6,12 @@
 #include <unistd.h>
 #include <string.h>
 #include <pthread.h>
+#include <getopt.h>
 #include "tinyfile_service.h"
 #include "tinyfile_library.h"
 
-int open[NUM_THREADS] = {1, 1, 1, 1};
+int open[MAX_THREADS] = {1, 1, 1, 1, 1, 1, 1, 1};
+int server_shm_size = SHM_SIZE;
 
 void* segment_function(void *arg) {
     segment_t* data = (segment_t*) arg;
@@ -61,7 +63,7 @@ void* segment_function(void *arg) {
             }
             memset(&msg, 0, sizeof(msg));
             msg.mtype = data->seg_id;
-            result = append_chunks(result, shm_ptr->chunk_content, msg_length);
+            result = append_chunks(result, shm_ptr->chunk_content, msg_length, server_shm_size);
             // printf("%s\n", result);
             if (shm_ptr->is_final_chunk) {
                 finish = 1;
@@ -110,12 +112,57 @@ void* segment_function(void *arg) {
     return NULL;
 }
 
+/*
+    HOW TO RUN:
+    ./tinyfile_service.o --n_sms #segments --sms_size #bytes_per_segment
+*/
 int main(int argc, char* argv[]) {
+    int n_sms = 0;
+    int sms_size = 0;
+
+    static struct option long_options[] = {
+        {"n_sms",    required_argument, 0,  'n' }, 
+        {"sms_size", required_argument, 0,  's' },
+        {0, 0, 0, 0}
+    };
+
+    int option_index = 0;
+    int c;
+
+    while ((c = getopt_long(argc, argv, "n:s:", long_options, &option_index)) != -1) {
+        switch (c) {
+            case 'n':
+                n_sms = atoi(optarg);
+                break;
+            case 's':
+                sms_size = atoi(optarg); 
+                break;
+            case '?': 
+                exit(EXIT_FAILURE);
+            default:
+                break;
+        }
+    }
+
+    if (n_sms <= 0) {
+        printf("No --n_sms provided; Using --n_sms = 4");
+        n_sms = 4;
+    } else if (n_sms > 8) {
+        printf("Exceed maximum segments; Using --n_sms = 8");
+        n_sms = MAX_THREADS;
+    }
+
+    if (sms_size <= 0) {
+        printf("No --sms_size provided; Using --sms_size = 1024");
+        sms_size = 1024;
+    }
+    server_shm_size = sms_size;
+
     int msg_id;
     message_t msg_client;
     message_t msg_segment;
-    pthread_t segments[NUM_THREADS];
-    segment_t segment_data[NUM_THREADS];
+    pthread_t segments[n_sms];
+    segment_t segment_data[n_sms];
 
     // * The message queue is initialized
     key_t key = ftok("my_message_queue_key", 65);
@@ -130,7 +177,7 @@ int main(int argc, char* argv[]) {
         printf("Cleared extra message!\n");
     }
     
-    for (int i = 0; i < NUM_THREADS; i++) {
+    for (int i = 0; i < n_sms; i++) {
         segment_data[i].msg_id = msg_id;
         segment_data[i].seg_id = i + 1;
 
@@ -150,11 +197,12 @@ int main(int argc, char* argv[]) {
             exit(1);
         }
         msg_client.mtype = SERVER_MTYPE;
+        msg_client.shm_size = server_shm_size;
 
         // printf("Server received: %s\n", msg_client.msg_text);
         int found = 0;
         while (!found) {
-            for (int j = 0; j < NUM_THREADS; j++) {
+            for (int j = 0; j < n_sms; j++) {
                 if (open[j]) {
                     found = 1;
                     msg_client.destination_id = j + 1;

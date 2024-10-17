@@ -78,15 +78,6 @@ void* async_function(void* arg) {
         exit(1);
     }
 
-    // * Initialize chunks
-    int chunk_size = SHM_SIZE;
-    int num_chunks = ((strlen(buffer) + chunk_size - 1) / chunk_size);
-    char** chunk_buffers = (char**) malloc(num_chunks * sizeof(char*));
-    for (int i = 0; i < num_chunks; i++) {
-        chunk_buffers[i] = (char*) malloc(chunk_size);
-    }
-    chunk_input_buffer(buffer, strlen(buffer), chunk_size, chunk_buffers);
-
     // * Initialize key
     key_t key = ftok("my_message_queue_key", 65);
     msg_id = msgget(key, 0666);
@@ -112,12 +103,20 @@ void* async_function(void* arg) {
         exit(1);
     }
     
-
+    int shm_size = msg.shm_size;
     seg_id = msg.destination_id;
     memset(&msg, 0, sizeof(msg));
     recv_id = seg_id * 9;
     msg.mtype = recv_id;
     strcpy(msg.msg_text, data->pathname);
+    // * Initialize chunks
+    int chunk_size = shm_size;
+    int num_chunks = ((strlen(buffer) + chunk_size - 1) / chunk_size);
+    char** chunk_buffers = (char**) malloc(num_chunks * sizeof(char*));
+    for (int i = 0; i < num_chunks; i++) {
+        chunk_buffers[i] = (char*) malloc(chunk_size);
+    }
+    chunk_input_buffer(buffer, strlen(buffer), chunk_size, chunk_buffers);
     if (msgsnd(msg_id, &msg, sizeof(message_t) - sizeof(long), 0) == -1) {
         perror("msgsnd to thread failed");
         exit(1);
@@ -146,7 +145,7 @@ void* async_function(void* arg) {
         } else {
             shm_ptr->is_final_chunk = 0;
         }
-        strncpy(shm_ptr->chunk_content, chunk_buffers[i], SHM_SIZE);
+        strncpy(shm_ptr->chunk_content, chunk_buffers[i], shm_size);
         // * Send notice that the shared memory is ready
         if (msgsnd(msg_id, &msg, sizeof(message_t) - sizeof(long), 0) == -1) {
             perror("msgsnd failed, chunk sender");
@@ -245,6 +244,6 @@ int main(int argc, char *argv[]) {
     gettimeofday(&end_time, NULL);
     double elapsed_time = (end_time.tv_sec - start_time.tv_sec) * 1000.0;
     elapsed_time += (end_time.tv_usec - start_time.tv_usec) / 1000.0;
-    printf("Total run-time for client: %f\n", elapsed_time);
+    printf("Total run-time for client (ms): %f\n", elapsed_time);
     return 0;
 }

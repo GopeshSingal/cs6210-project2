@@ -28,21 +28,21 @@ void chunk_input_buffer(const char *buffer, size_t buffer_size, size_t chunk_siz
     return;
 }
 
-char* append_chunks(char *result, const char *buffer, int full_length) {
+char* append_chunks(char *result, const char *buffer, int full_length, int chunk_size) {
     if (result == NULL) {
-        if (full_length < SHM_SIZE) {
+        if (full_length < chunk_size) {
             result = malloc(full_length);
             strncpy(result, buffer, full_length);
         } else {
-            result = malloc(SHM_SIZE);
-            strncpy(result, buffer, SHM_SIZE);
+            result = malloc(chunk_size);
+            strncpy(result, buffer, chunk_size);
         }
         if (result == NULL) {
             fprintf(stderr, "malloc failed");
             exit(1);
         }
     } else {
-        result = realloc(result, strlen(result) + SHM_SIZE + 1);
+        result = realloc(result, strlen(result) + chunk_size + 1);
         if (result == NULL) {
             fprintf(stderr, "realloc failed");
             exit(1);
