@@ -11,39 +11,6 @@
 
 int open[NUM_THREADS] = {1, 1, 1, 1};
 
-
-/**
-This method is used for combining the incoming buffer chunks together. 
-
-Args:
- - result: buffer to hold the result as it grows
- - buffer: the buffer being appended
- - full_length: represents the full length of the input, needed for initializing result if result == NULL
- */
-char* append_chunks(char *result, const char *buffer, int full_length) {
-    if (result == NULL) {
-        if (full_length < SHM_SIZE) {
-            result = malloc(full_length);
-            strncpy(result, buffer, full_length);
-        } else {
-            result = malloc(SHM_SIZE);
-            strncpy(result, buffer, SHM_SIZE);
-        }
-        if (result == NULL) {
-            fprintf(stderr, "malloc failed");
-            exit(1);
-        }
-    } else {
-        result = realloc(result, strlen(result) + SHM_SIZE + 1);
-        if (result == NULL) {
-            fprintf(stderr, "realloc failed");
-            exit(1);
-        }
-        strcat(result, buffer);
-    }
-    return result;
-}
-
 void* segment_function(void *arg) {
     segment_t* data = (segment_t*) arg;
     int recv_id = data->seg_id * 9;

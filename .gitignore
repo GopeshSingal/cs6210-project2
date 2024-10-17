@@ -3,4 +3,4 @@ src/tinyfile_client
 bin/output
 src/*.so*
 src/*.o
-
+*.DSYM
