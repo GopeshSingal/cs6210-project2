@@ -11,61 +11,31 @@
 
 int open[NUM_THREADS] = {1, 1, 1, 1};
 
-
-/**
-This method is used for combining the incoming buffer chunks together. 
-
-Args:
- - result: buffer to hold the result as it grows
- - buffer: the buffer being appended
- - full_length: represents the full length of the input, needed for initializing result if result == NULL
- */
-char* append_chunks(char *result, const char *buffer, int full_length) {
-    if (result == NULL) {
-        if (full_length < SHM_SIZE) {
-            result = malloc(full_length);
-            strncpy(result, buffer, full_length);
-        } else {
-            result = malloc(SHM_SIZE);
-            strncpy(result, buffer, SHM_SIZE);
-        }
-        if (result == NULL) {
-            fprintf(stderr, "malloc failed");
-            exit(1);
-        }
-    } else {
-        result = realloc(result, strlen(result) + SHM_SIZE + 1);
-        if (result == NULL) {
-            fprintf(stderr, "realloc failed");
-            exit(1);
-        }
-        strcat(result, buffer);
-    }
-    return result;
-}
-
 void* segment_function(void *arg) {
     segment_t* data = (segment_t*) arg;
     int recv_id = data->seg_id * 9;
     int msg_length, shm_id;
+    int complete = 0;
     message_t msg;
     memset(&msg, 0, sizeof(msg));
     msg.destination_id = data->seg_id;
+    printf("Segment %d is created!\n", data->seg_id);
     while (1) {
-        printf("Segment %d is looping.\n", data->seg_id);
-
         if (msgrcv(data->msg_id, &msg, sizeof(message_t) - sizeof(long), recv_id, 0) == -1) {
             perror("msgrcv failed on thread");
             exit(1);
+        }
+        printf("Segment %d is active! Working on: %s\n", data->seg_id, msg.msg_text);
+        if (msg.msg_text[0] ==  '\0' || msg.msg_text == NULL) {
+            printf("Segment %d is skipping invalid input!\n", data->seg_id);
+            open[data->seg_id - 1] = 1;
+            continue;
         }
         msg_length = msg.full_msg_length;
         memset(&msg, 0, sizeof(msg));
         msg.mtype = data->seg_id;
 
-        // printf("Thread %d received: %s\n", data->seg_id, msg.msg_text);
-
-        shm_id = shmget(data->shm_key, sizeof(shared_memory_chunk_t), 0666 | IPC_CREAT | IPC_PRIVATE);
-        // printf("shm id in service 1: %d\n", shm_id);
+        shm_id = shmget(IPC_PRIVATE, sizeof(shared_memory_chunk_t), 0666 | IPC_CREAT);
         if (shm_id == -1) {
             perror("shmget failed on thread");
             exit(1);
@@ -127,13 +97,14 @@ void* segment_function(void *arg) {
             exit(1);
         }
       
-        struct shmid_ds buf;
-        if (shmctl(shm_id, IPC_RMID, &buf) == -1) {
+        if (shmctl(shm_id, IPC_RMID, NULL) == -1) {
             perror("shmctl IPC_RMID failed");
-            return NULL;
+            printf("failed to kill shm_id: %d, segment: %d\n", shm_id, data->seg_id);
+            exit(1);
         }
-        usleep(5000000);
         open[data->seg_id - 1] = 1;
+        complete++;
+        printf("Segment %d has finished task #%d\n", data->seg_id, complete);
         usleep(10000);
     }
     return NULL;
@@ -160,10 +131,8 @@ int main(int argc, char* argv[]) {
     }
     
     for (int i = 0; i < NUM_THREADS; i++) {
-        key_t shm_key = ftok("my_shared_memory_key", 75 + i);
         segment_data[i].msg_id = msg_id;
         segment_data[i].seg_id = i + 1;
-        segment_data[i].shm_key = shm_key;
 
         if (pthread_create(&segments[i], NULL, segment_function, &segment_data[i]) != 0) {
             perror("pthread_create failed");

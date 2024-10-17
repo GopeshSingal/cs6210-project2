@@ -5,7 +5,7 @@
 
 #define SERVER_MTYPE 256
 #define SERVER_ACCESS_MTYPE 100
-#define SHM_SIZE 1024
+#define SHM_SIZE 8192
 #define MSG_SIZE 128
 
 typedef struct shared_memory_chunk {
@@ -26,4 +26,5 @@ typedef struct message {
 extern void chunk_input_buffer(const char *buffer, size_t buffer_size, size_t chunk_size, char **chunk_buffers);
 extern char * compress_file(const char *input_data, size_t * compressed_size);
 extern void uncompress_buffer(char * compressed_data, size_t compressed_size);
+extern char* append_chunks(char *result, const char *buffer, int full_length);
 #endif

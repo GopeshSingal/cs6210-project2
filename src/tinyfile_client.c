@@ -70,7 +70,7 @@ void* async_function(void* arg) {
     int msg_id, shm_id, seg_id, recv_id;
     
     // * Read file from unique pathname
-    printf("Thread %d is active!\n", data->thread_id);
+    printf("Thread %d is active with %s!\n", data->thread_id, data->pathname);
     char* buffer = read_file(data->pathname);
     if (!buffer) {
         perror("File read failure");
@@ -101,7 +101,6 @@ void* async_function(void* arg) {
     msg.full_msg_length = strlen(buffer);
     msg.shm_id = 0;
 
-    strcpy(msg.msg_text, "This string is from client");
     if (msgsnd(msg_id, &msg, sizeof(message_t) - sizeof(long), 0) == -1) {
         perror("msgsnd to server failed");
         exit(1);
@@ -117,6 +116,7 @@ void* async_function(void* arg) {
     memset(&msg, 0, sizeof(msg));
     recv_id = seg_id * 9;
     msg.mtype = recv_id;
+    strcpy(msg.msg_text, data->pathname);
     if (msgsnd(msg_id, &msg, sizeof(message_t) - sizeof(long), 0) == -1) {
         perror("msgsnd to thread failed");
         exit(1);
@@ -139,6 +139,7 @@ void* async_function(void* arg) {
     // * Send each chunk one-by-one
     shm_ptr->is_final_chunk = 0;
     for (int i = 0; i < num_chunks; i++) {
+        // printf("Thread %d is sending!\n", data->thread_id);
         if (i == num_chunks - 1) {
             shm_ptr->is_final_chunk = 1;
         } else {
@@ -233,7 +234,7 @@ int main(int argc, char *argv[]) {
             }
             (void) pthread_join(runthread, NULL);
         }
-        usleep(500000);
+        usleep(10000);
         for (int i = 0; i < file_count; i++) {
             free(files[i]);
         }

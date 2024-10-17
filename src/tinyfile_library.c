@@ -28,6 +28,30 @@ void chunk_input_buffer(const char *buffer, size_t buffer_size, size_t chunk_siz
     return;
 }
 
+char* append_chunks(char *result, const char *buffer, int full_length) {
+    if (result == NULL) {
+        if (full_length < SHM_SIZE) {
+            result = malloc(full_length);
+            strncpy(result, buffer, full_length);
+        } else {
+            result = malloc(SHM_SIZE);
+            strncpy(result, buffer, SHM_SIZE);
+        }
+        if (result == NULL) {
+            fprintf(stderr, "malloc failed");
+            exit(1);
+        }
+    } else {
+        result = realloc(result, strlen(result) + SHM_SIZE + 1);
+        if (result == NULL) {
+            fprintf(stderr, "realloc failed");
+            exit(1);
+        }
+        strcat(result, buffer);
+    }
+    return result;
+}
+
 char * compress_file(const char *input_data, size_t * compressed_size) {
     // Prepare the buffer for compressed data
     size_t input_size = strlen(input_data);
