@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <dirent.h>
+#include <sys/time.h>
 #include "tinyfile_client.h"
 #include "tinyfile_library.h"
 
@@ -182,6 +183,7 @@ int main(int argc, char *argv[]) {
     char *files[MAX_REQUESTS];
     int file_count = 0;
     int mode = 0;
+    struct timeval start_time, end_time;
     pthread_t threads[MAX_REQUESTS];
     async_thread_t thread_data[MAX_REQUESTS];
 
@@ -208,6 +210,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    gettimeofday(&start_time, NULL);
     if (mode) {
         for (int i = 0; i < file_count; i++) {
             thread_data[i].thread_id = i;
@@ -239,5 +242,9 @@ int main(int argc, char *argv[]) {
             free(files[i]);
         }
     }
+    gettimeofday(&end_time, NULL);
+    double elapsed_time = (end_time.tv_sec - start_time.tv_sec) * 1000.0;
+    elapsed_time += (end_time.tv_usec - start_time.tv_usec) / 1000.0;
+    printf("Total run-time for client: %f\n", elapsed_time);
     return 0;
 }
