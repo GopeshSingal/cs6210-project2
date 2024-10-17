@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <dirent.h>
+#include <sys/time.h>
 #include "tinyfile_client.h"
 #include "tinyfile_library.h"
 
@@ -70,21 +71,12 @@ void* async_function(void* arg) {
     int msg_id, shm_id, seg_id, recv_id;
     
     // * Read file from unique pathname
-    printf("Thread %d is active!\n", data->thread_id);
+    printf("Thread %d is active with %s!\n", data->thread_id, data->pathname);
     char* buffer = read_file(data->pathname);
     if (!buffer) {
         perror("File read failure");
         exit(1);
     }
-
-    // * Initialize chunks
-    int chunk_size = SHM_SIZE;
-    int num_chunks = ((strlen(buffer) + chunk_size - 1) / chunk_size);
-    char** chunk_buffers = (char**) malloc(num_chunks * sizeof(char*));
-    for (int i = 0; i < num_chunks; i++) {
-        chunk_buffers[i] = (char*) malloc(chunk_size);
-    }
-    chunk_input_buffer(buffer, strlen(buffer), chunk_size, chunk_buffers);
 
     // * Initialize key
     key_t key = ftok("my_message_queue_key", 65);
@@ -101,7 +93,6 @@ void* async_function(void* arg) {
     msg.full_msg_length = strlen(buffer);
     msg.shm_id = 0;
 
-    strcpy(msg.msg_text, "This string is from client");
     if (msgsnd(msg_id, &msg, sizeof(message_t) - sizeof(long), 0) == -1) {
         perror("msgsnd to server failed");
         exit(1);
@@ -112,11 +103,20 @@ void* async_function(void* arg) {
         exit(1);
     }
     
-
+    int shm_size = msg.shm_size;
     seg_id = msg.destination_id;
     memset(&msg, 0, sizeof(msg));
     recv_id = seg_id * 9;
     msg.mtype = recv_id;
+    strcpy(msg.msg_text, data->pathname);
+    // * Initialize chunks
+    int chunk_size = shm_size;
+    int num_chunks = ((strlen(buffer) + chunk_size - 1) / chunk_size);
+    char** chunk_buffers = (char**) malloc(num_chunks * sizeof(char*));
+    for (int i = 0; i < num_chunks; i++) {
+        chunk_buffers[i] = (char*) malloc(chunk_size);
+    }
+    chunk_input_buffer(buffer, strlen(buffer), chunk_size, chunk_buffers);
     if (msgsnd(msg_id, &msg, sizeof(message_t) - sizeof(long), 0) == -1) {
         perror("msgsnd to thread failed");
         exit(1);
@@ -139,12 +139,13 @@ void* async_function(void* arg) {
     // * Send each chunk one-by-one
     shm_ptr->is_final_chunk = 0;
     for (int i = 0; i < num_chunks; i++) {
+        // printf("Thread %d is sending!\n", data->thread_id);
         if (i == num_chunks - 1) {
             shm_ptr->is_final_chunk = 1;
         } else {
             shm_ptr->is_final_chunk = 0;
         }
-        strncpy(shm_ptr->chunk_content, chunk_buffers[i], SHM_SIZE);
+        strncpy(shm_ptr->chunk_content, chunk_buffers[i], shm_size);
         // * Send notice that the shared memory is ready
         if (msgsnd(msg_id, &msg, sizeof(message_t) - sizeof(long), 0) == -1) {
             perror("msgsnd failed, chunk sender");
@@ -181,6 +182,7 @@ int main(int argc, char *argv[]) {
     char *files[MAX_REQUESTS];
     int file_count = 0;
     int mode = 0;
+    struct timeval start_time, end_time;
     pthread_t threads[MAX_REQUESTS];
     async_thread_t thread_data[MAX_REQUESTS];
 
@@ -207,6 +209,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    gettimeofday(&start_time, NULL);
     if (mode) {
         for (int i = 0; i < file_count; i++) {
             thread_data[i].thread_id = i;
@@ -233,10 +236,14 @@ int main(int argc, char *argv[]) {
             }
             (void) pthread_join(runthread, NULL);
         }
-        usleep(500000);
+        usleep(10000);
         for (int i = 0; i < file_count; i++) {
             free(files[i]);
         }
     }
+    gettimeofday(&end_time, NULL);
+    double elapsed_time = (end_time.tv_sec - start_time.tv_sec) * 1000.0;
+    elapsed_time += (end_time.tv_usec - start_time.tv_usec) / 1000.0;
+    printf("Total run-time for client (ms): %f\n", elapsed_time);
     return 0;
 }

@@ -1,14 +1,14 @@
 #ifndef __TINYFILE_SERVICE_H
 #define __TINYFILE_SERVICE_H
 
-#include <sys/_types/_key_t.h>
 #define NUM_THREADS 5
+#define MAX_THREADS 8
 typedef struct segment {
     int msg_id;
     int seg_id;
-    key_t shm_key;
 } segment_t;
 
-extern int open[NUM_THREADS];
+extern int open[MAX_THREADS];
+extern int server_shm_size;
 
 #endif
