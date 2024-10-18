@@ -166,9 +166,37 @@ void* async_function(void* arg) {
         perror("msgrcv failed");
         exit(1);
     }
-    // printf("Data written to shared memory: %s\n", shm_ptr->chunk_content);
+    size_t msg_length = msg.full_msg_length;
     memset(&msg, 0, sizeof(msg));
     msg.mtype = recv_id;
+
+    int finish = 0;
+    char *result = NULL;
+    size_t curr_size = 0;
+    while (!finish) {
+        if (msgrcv(msg_id, &msg, sizeof(message_t) - sizeof(long), seg_id, 0) == -1) {
+            perror("msgrcv failed, chunk receiver, on thread");
+            exit(1);
+        }
+        memset(&msg, 0, sizeof(msg));
+        msg.mtype = recv_id;
+        if (!msg_length) {
+            msg_length = msg.full_msg_length;
+        }
+        size_t current_chunk_size = (msg_length - curr_size < chunk_size) ? (msg_length - curr_size) : chunk_size;
+        result = append_compressed_chunks(result, shm_ptr->chunk_content, msg_length, current_chunk_size, curr_size);
+        curr_size += shm_size;
+        if (shm_ptr->is_final_chunk) {
+            finish = 1;
+        }
+        if (msgsnd(msg_id, &msg, sizeof(message_t) - sizeof(long), 0) == -1) {
+            perror("msgsnd failed, chunk receiver, on thread");
+            exit(1);
+        }
+    }
+    // uncompress_buffer(result, msg_length);
+    free(result);
+
     // * Cleanup
     if (shmdt(shm_ptr) == -1) {
         perror("shmdt failed, 1");

@@ -24,8 +24,10 @@ typedef struct message {
     int destination_id;
 } message_t;
 
+extern void my_copy_str(char *dest, char *src, size_t num);
 extern void chunk_input_buffer(const char *buffer, size_t buffer_size, size_t chunk_size, char **chunk_buffers);
 extern char * compress_file(const char *input_data, size_t * compressed_size);
 extern void uncompress_buffer(char * compressed_data, size_t compressed_size);
 extern char* append_chunks(char *result, const char *buffer, int full_length, int chunk_size);
+extern char* append_compressed_chunks(char *result, const char *buffer, int full_length, int chunk_size, int offset);
 #endif

@@ -52,6 +52,25 @@ char* append_chunks(char *result, const char *buffer, int full_length, int chunk
     return result;
 }
 
+char* append_compressed_chunks(char *result, const char *buffer, int full_length, int chunk_size, int offset) {
+    if (result == NULL) {
+        result = malloc(chunk_size);
+        if (result == NULL) {
+            fprintf(stderr, "malloc failed");
+            exit(1);
+        }
+        my_copy_str(result, buffer, chunk_size);
+    } else {
+        result = realloc(result, offset + chunk_size + 1);
+        if (result == NULL) {
+            fprintf(stderr, "realloc failed");
+            exit(1);
+        }
+        my_copy_str(result + offset, buffer, chunk_size);
+    }
+    return result;
+}
+
 char * compress_file(const char *input_data, size_t * compressed_size) {
     // Prepare the buffer for compressed data
     size_t input_size = strlen(input_data);
@@ -124,36 +143,4 @@ void uncompress_buffer(char * compressed_data, size_t compressed_size) {
     free(uncompressed_data);
 
     printf("File uncompressed successfully:\n");
-}
-
-/**
-This method is used for combining the incoming buffer chunks together. 
-
-Args:
- - result: buffer to hold the result as it grows
- - buffer: the buffer being appended
- - full_length: represents the full length of the input, needed for initializing result if result == NULL
- */
-char* append_chunks(char *result, const char *buffer, int full_length) {
-    if (result == NULL) {
-        if (full_length < SHM_SIZE) {
-            result = malloc(full_length);
-            strncpy(result, buffer, full_length);
-        } else {
-            result = malloc(SHM_SIZE);
-            strncpy(result, buffer, SHM_SIZE);
-        }
-        if (result == NULL) {
-            fprintf(stderr, "malloc failed");
-            exit(1);
-        }
-    } else {
-        result = realloc(result, strlen(result) + SHM_SIZE + 1);
-        if (result == NULL) {
-            fprintf(stderr, "realloc failed");
-            exit(1);
-        }
-        strcat(result, buffer);
-    }
-    return result;
 }

@@ -79,7 +79,7 @@ void* segment_function(void *arg) {
         free(result);
 
         // * Initialize chunks
-        int chunk_size = SHM_SIZE;
+        int chunk_size = server_shm_size;
         int num_chunks = ((compressed_size + chunk_size - 1) / chunk_size);
         char** chunk_buffers = (char**) malloc(num_chunks * sizeof(char*));
         for (int i = 0; i < num_chunks; i++) {
@@ -88,12 +88,41 @@ void* segment_function(void *arg) {
         chunk_input_buffer(compressed_data, compressed_size, chunk_size, chunk_buffers);
         free(compressed_data);
 
+        // Send compressed length back to client
+        msg.full_msg_length = compressed_size;
         strcpy(shm_ptr->chunk_content, "here");
-
         if (msgsnd(data->msg_id, &msg, sizeof(message_t) - sizeof(long), 0) == -1) {
             perror("msgsnd failed on thread second fail");
             exit(1);
         }
+
+        // * Send each chunk one-by-one
+        shm_ptr->is_final_chunk = 0;
+        for (int i = 0; i < num_chunks; i++) {
+            // printf("Thread %d is sending!\n", data->thread_id);
+            if (i == num_chunks - 1) {
+                shm_ptr->is_final_chunk = 1;
+            } else {
+                shm_ptr->is_final_chunk = 0;
+            }
+            my_copy_str(shm_ptr->chunk_content, chunk_buffers[i], server_shm_size);
+            // * Send notice that the shared memory is ready
+            if (msgsnd(data->msg_id, &msg, sizeof(message_t) - sizeof(long), 0) == -1) {
+                perror("msgsnd failed, chunk sender server");
+                exit(1);
+            }
+            free(chunk_buffers[i]);
+            // * Receive notice that the shared memory is ready (mainly used for synchronization between client and server)
+            if (msgrcv(data->msg_id, &msg, sizeof(message_t) - sizeof(long), recv_id, 0) == -1) {
+                perror("msgrcv failed, chunk sender server");
+                exit(1);
+            }
+            memset(&msg, 0, sizeof(msg));
+            msg.mtype = data->seg_id;
+        }
+        free(chunk_buffers);
+
+
         if (shmdt(shm_ptr) == -1) {
             perror("shmdt failed on thread");
             exit(1);
