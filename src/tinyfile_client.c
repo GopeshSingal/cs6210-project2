@@ -217,6 +217,7 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Error: First argument must be either 'SYNC' or 'ASYNC'.\n");
         return 1;
     }
+    printf("CLIENT IS PID: %lu again %lu\n", getpid(), getpid());
     pid_t pid = getpid();
     gettimeofday(&start_time, NULL);
     if (mode) {
@@ -224,6 +225,15 @@ int main(int argc, char *argv[]) {
             thread_data[i].thread_id = i;
             thread_data[i].client_id = pid;
             strcpy(thread_data[i].pathname, files[i]);
+            /*
+                for data in thread data:
+                    msg.pathname = data.pathname, msg.tid = tid
+                    msgsnd to queue thread
+                    <INSIDE QUEUE THREAD>
+                        make linked list head first then
+                        for data received one by one:
+                            linked list add node(pathname, clientid * 100 + tid)
+            */
             if (pthread_create(&threads[i], NULL, async_function, &thread_data[i]) != 0) {
                 perror("pthread creation failed");
                 exit(1);
