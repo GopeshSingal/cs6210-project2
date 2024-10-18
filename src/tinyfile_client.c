@@ -69,6 +69,7 @@ int files_in_dir(const char* path, char *files[]) {
 void* async_function(void* arg) {
     async_thread_t* data = (async_thread_t*) arg;
     int msg_id, shm_id, seg_id, recv_id;
+    // printf("PID: %lu again %lu\n", getpid(), getpid());
     
     // * Read file from unique pathname
     printf("Thread %d is active with %s!\n", data->thread_id, data->pathname);
@@ -89,26 +90,34 @@ void* async_function(void* arg) {
     // * Initialize message, then send and receive with server
     message_t msg;
     memset(&msg, 0, sizeof(msg));
-    msg.mtype = SERVER_ACCESS_MTYPE;
+    msg.mtype = QUEUE_MTYPE;
     msg.full_msg_length = strlen(buffer);
     msg.shm_id = 0;
-
+    int serv_recv_id = data->thread_id + 18;
+    msg.destination_id = serv_recv_id;
+    msg.count = 0;
+    msg.client_id = getpid();
+    printf("client send: %d and pid: %lu\n", msg.count, msg.client_id);
+    msg.count++;
     if (msgsnd(msg_id, &msg, sizeof(message_t) - sizeof(long), 0) == -1) {
         perror("msgsnd to server failed");
-        exit(1);
+        exit(1); 
     }
-
-    if (msgrcv(msg_id, &msg, sizeof(message_t) - sizeof(long), SERVER_MTYPE, 0) == -1) {
+    msg.count++;
+    // printf("client send receive: %d\n", msg.count);
+    msg.count++;
+    if (msgrcv(msg_id, &msg, sizeof(message_t) - sizeof(long), serv_recv_id, 0) == -1) {
         perror("msgrcv failed");
         exit(1);
     }
-    
+    // printf("client recieve: %d\n", msg.count);
     int shm_size = msg.shm_size;
     seg_id = msg.destination_id;
     memset(&msg, 0, sizeof(msg));
-    recv_id = seg_id * 9;
+    recv_id = seg_id + 9;
     msg.mtype = recv_id;
     strcpy(msg.msg_text, data->pathname);
+    
     // * Initialize chunks
     int chunk_size = shm_size;
     int num_chunks = ((strlen(buffer) + chunk_size - 1) / chunk_size);
@@ -208,12 +217,23 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Error: First argument must be either 'SYNC' or 'ASYNC'.\n");
         return 1;
     }
-
+    printf("CLIENT IS PID: %lu again %lu\n", getpid(), getpid());
+    pid_t pid = getpid();
     gettimeofday(&start_time, NULL);
     if (mode) {
         for (int i = 0; i < file_count; i++) {
             thread_data[i].thread_id = i;
+            thread_data[i].client_id = pid;
             strcpy(thread_data[i].pathname, files[i]);
+            /*
+                for data in thread data:
+                    msg.pathname = data.pathname, msg.tid = tid
+                    msgsnd to queue thread
+                    <INSIDE QUEUE THREAD>
+                        make linked list head first then
+                        for data received one by one:
+                            linked list add node(pathname, clientid * 100 + tid)
+            */
             if (pthread_create(&threads[i], NULL, async_function, &thread_data[i]) != 0) {
                 perror("pthread creation failed");
                 exit(1);
@@ -229,6 +249,7 @@ int main(int argc, char *argv[]) {
             pthread_t runthread;
             async_thread_t thread;
             thread.thread_id = 1;
+            thread_data[i].client_id = pid;
             strcpy(thread.pathname, files[i]);
             if (pthread_create(&runthread, NULL, async_function, &thread) != 0) {
                 perror("pthread creation failed");

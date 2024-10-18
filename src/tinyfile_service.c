@@ -12,10 +12,11 @@
 
 int open[MAX_THREADS] = {1, 1, 1, 1, 1, 1, 1, 1};
 int server_shm_size = SHM_SIZE;
+HashMap * q_map;
 
 void* segment_function(void *arg) {
     segment_t* data = (segment_t*) arg;
-    int recv_id = data->seg_id * 9;
+    int recv_id = data->seg_id + 9;
     int msg_length, shm_id;
     int complete = 0;
     message_t msg;
@@ -112,6 +113,31 @@ void* segment_function(void *arg) {
     return NULL;
 }
 
+void* queue_function(void *arg) {
+    queue_thread_data_t* data = (queue_thread_data_t*) arg;
+    message_t msg;
+    while (1) {
+        // printf("in queue func:\n");
+        if (msgrcv(data->msg_id, &msg, sizeof(message_t) - sizeof(long), QUEUE_MTYPE, 0) == -1) {
+            perror("msgrcv failed, queue thread");
+            exit(1);
+        }
+        // enqueue(data->queue, msg.destination_id);
+        struct qnode* curr_qnode = hash_map_get(q_map, msg.client_id);
+        hash_map_display(q_map);
+        if (!curr_qnode); {
+            // printf("creating a new q node\n");
+            curr_qnode = fake_enqueue(data->fake_queue, msg.client_id);
+            hash_map_put(q_map, msg.client_id, curr_qnode);
+        }
+        // curr_qnode->tail = add_llnode(curr_qnode->tail, msg.destination_id);
+        // if (!curr_qnode->head) {
+        //     curr_qnode->head = curr_qnode->tail;
+        // }
+    }
+    return NULL;
+}
+
 /*
     HOW TO RUN:
     ./tinyfile_service.o --n_sms #segments --sms_size #bytes_per_segment
@@ -163,7 +189,7 @@ int main(int argc, char* argv[]) {
     message_t msg_segment;
     pthread_t segments[n_sms];
     segment_t segment_data[n_sms];
-
+    q_map = create_hash_map();
     // * The message queue is initialized
     key_t key = ftok("my_message_queue_key", 65);
     message_t msgc;
@@ -182,24 +208,39 @@ int main(int argc, char* argv[]) {
         segment_data[i].seg_id = i + 1;
 
         if (pthread_create(&segments[i], NULL, segment_function, &segment_data[i]) != 0) {
-            perror("pthread_create failed");
+            perror("segment_thread creation failed\n");
             exit(1);
         }
+    }
+
+    struct client_queue* queue = create_queue();
+    struct client_queue* fake_queue = create_queue();
+    pthread_t queue_thread;
+    queue_thread_data_t queue_data;
+    queue_data.msg_id = msg_id;
+    queue_data.queue = queue; // set up circular queue of client threads
+    queue_data.fake_queue = fake_queue;
+    printf("SETTUP NEW QUEUE DATAT THREAD THING\n");
+    if (pthread_create(&queue_thread, NULL, queue_function, &queue_data) != 0) {
+        perror("queue_thread creation failed\n");
+        exit(1);
     }
 
     printf("TinyFile service is now active!\n");
 
     // * Develop function for assigning segment to client!
     while (1) {
-        // printf("Main thread looping!\n");
-        if (msgrcv(msg_id, &msg_client, sizeof(message_t) - sizeof(long), SERVER_ACCESS_MTYPE, 0) == -1) {
-            perror("msgrcv failed, main thread");
-            exit(1);
+        while (1) {
+            if (queue->size != 0) {
+                break;
+            }
         }
-        msg_client.mtype = SERVER_MTYPE;
+        int recv_id = dequeue(queue);
+        // int fake_recv_id = fake_dequeue(fake_queue);
+
+        msg_client.mtype = recv_id;
         msg_client.shm_size = server_shm_size;
 
-        // printf("Server received: %s\n", msg_client.msg_text);
         int found = 0;
         while (!found) {
             for (int j = 0; j < n_sms; j++) {
