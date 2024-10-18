@@ -1,22 +1,28 @@
 #!/bin/bash
 
 # Define source and output directories
-SRC_DIR="../bin/input"
-OUT_DIR="../bin/output"
+# SRC_DIR="../bin/input"
+# OUT_DIR="../bin/output"
 
-rm -r "$OUT_DIR"
+# rm -r "$OUT_DIR"
 
-# Create the output directory if it doesn't exist
-mkdir -p "$OUT_DIR"
+# # Create the output directory if it doesn't exist
+# mkdir -p "$OUT_DIR"
 
-# Iterate through all input files
-for file in "$SRC_DIR"/*; do
-    # Get the filename without path
-    filename=$(basename -- "$file")
-    #   echo "${filename%.*}"   --> get filename without extension
+# # Iterate through all input files
+# for file in "$SRC_DIR"/*; do
+#     # Get the filename without path
+#     filename=$(basename -- "$file")
+#     #   echo "${filename%.*}"   --> get filename without extension
 
-    COMPRESSED="$OUT_DIR/compressed_$filename"
-    UNCOMPRESSED="$OUT_DIR/uncompressed_$filename"
+#     COMPRESSED="$OUT_DIR/compressed_$filename"
+#     UNCOMPRESSED="$OUT_DIR/uncompressed_$filename"
 
-    ./snappyc_test.o "$file" "$COMPRESSED" "$UNCOMPRESSED"
-done
+#     ./snappyc_test.o "$file" "$COMPRESSED" "$UNCOMPRESSED"
+# done
+
+./tinyfile_client.o ASYNC ../bin/input/ & 
+./tinyfile_client.o ASYNC ../bin/input/
+# ./tinyfile_client.o ASYNC ../bin/files/
+# ./tinyfile_client.o ASYNC ../bin/files/
+# ./tinyfile_client.o ASYNC ../bin/input/

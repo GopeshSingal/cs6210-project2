@@ -5,6 +5,7 @@
 
 #define SERVER_MTYPE 256
 #define SERVER_ACCESS_MTYPE 100
+#define QUEUE_MTYPE 512
 #define MAX_SHM_SIZE 8192
 #define SHM_SIZE 1024
 #define MSG_SIZE 128
@@ -22,6 +23,8 @@ typedef struct message {
     int shm_id;
     int full_msg_length;
     int destination_id;
+    int count;
+    pid_t client_id;
 } message_t;
 
 extern void chunk_input_buffer(const char *buffer, size_t buffer_size, size_t chunk_size, char **chunk_buffers);

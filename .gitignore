@@ -3,4 +3,9 @@ src/tinyfile_client
 bin/output
 src/*.so*
 src/*.o
-
+*.dSYM
+.vscode
+/bin
+*/.DS_Store
+hashmap.c
+old-data.c

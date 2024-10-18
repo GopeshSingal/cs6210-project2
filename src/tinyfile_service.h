@@ -11,6 +11,11 @@ typedef struct segment {
     int seg_id;
 } segment_t;
 
+typedef struct queue_thread_data {
+    int msg_id;
+    struct client_queue* queue;
+} queue_thread_data_t;
+
 struct qnode {
     int recv_id;
     struct qnode* next;
@@ -19,6 +24,7 @@ struct qnode {
 struct client_queue {
     struct qnode* front;
     struct qnode* rear;
+    int size;
 };
 
 struct qnode* create_node(int id) {
@@ -31,6 +37,7 @@ struct qnode* create_node(int id) {
 struct client_queue* create_queue() {
     struct client_queue* queue = (struct client_queue*) malloc(sizeof(struct client_queue));
     queue->front = queue->rear = NULL;
+    queue->size = 0;
     return queue;
 }
 
@@ -44,10 +51,14 @@ void enqueue(struct client_queue* queue, int id) {
         queue->rear = node;
         queue->rear->next = queue->front;
     }
+    queue->size++;
 }
 
 int dequeue(struct client_queue* queue) {
     int return_id;
+    if (queue->size == 0) {
+        return -1;
+    }
     if (queue->front == queue->rear) {
         return_id = queue->front->recv_id;
         free(queue->front);
@@ -59,6 +70,7 @@ int dequeue(struct client_queue* queue) {
         queue->rear->next = queue->front;
         free(tmp);
     }
+    queue->size--;
     return return_id;
 }
 
