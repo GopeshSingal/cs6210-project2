@@ -123,17 +123,23 @@ void* queue_function(void *arg) {
             exit(1);
         }
         enqueue(data->queue, msg.destination_id);
-        // struct qnode* curr_qnode = hash_map_get(q_map, msg.client_id);
-        // hash_map_display(q_map);
-        // if (!curr_qnode); {
-        //     // printf("creating a new q node\n");
-        //     curr_qnode = fake_enqueue(data->fake_queue, msg.client_id);
-        //     hash_map_put(q_map, msg.client_id, curr_qnode);
-        // }
-        // curr_qnode->tail = add_llnode(curr_qnode->tail, msg.destination_id);
-        // if (!curr_qnode->head) {
-        //     curr_qnode->head = curr_qnode->tail;
-        // }
+        struct qnode* curr_qnode = hash_map_get(q_map, msg.client_id);
+        if (!curr_qnode) {
+            curr_qnode = fake_enqueue(data->fake_queue, msg.client_id);
+            hash_map_put(q_map, msg.client_id, curr_qnode);
+            hash_map_display(q_map);
+        }
+        struct llnode* tmp = add_llnode(curr_qnode->tail, msg.destination_id);
+        data->fake_queue->size++;
+        // printf("ADDING NODE TO: %d node %d and mtype: %d\n", curr_qnode, tmp, msg.destination_id);
+        curr_qnode->tail = tmp;
+        // printf("PREV TAIL: %d\n", curr_qnode->head);
+        if (!curr_qnode->head) {
+            // printf("SETTING HEAD\n");
+            curr_qnode->head = curr_qnode->tail;
+        }
+    //     printf("REAL NEW TAIL: %d head %d\n", curr_qnode->tail, curr_qnode->head);
+    //     printf("FAKE QUEUE SIZE %d\n", data->fake_queue->size);
     }
     return NULL;
 }
@@ -236,7 +242,9 @@ int main(int argc, char* argv[]) {
             }
         }
         int recv_id = dequeue(queue);
+        // printf("fake front pre dequeue: %d", fake_queue->front);
         // int fake_recv_id = fake_dequeue(fake_queue);
+        // printf("fake recv id: %d\n", fake_recv_id);
 
         msg_client.mtype = recv_id;
         msg_client.shm_size = server_shm_size;

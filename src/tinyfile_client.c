@@ -93,11 +93,11 @@ void* async_function(void* arg) {
     msg.mtype = QUEUE_MTYPE;
     msg.full_msg_length = strlen(buffer);
     msg.shm_id = 0;
-    int serv_recv_id = data->thread_id + 18;
+    int serv_recv_id = data->thread_id + 18 + getpid() * 100;
     msg.destination_id = serv_recv_id;
     msg.count = 0;
     msg.client_id = getpid();
-    printf("client send: %d and pid: %lu\n", msg.count, msg.client_id);
+    // printf("client send: %d and pid: %lu\n", msg.count, msg.client_id);
     msg.count++;
     if (msgsnd(msg_id, &msg, sizeof(message_t) - sizeof(long), 0) == -1) {
         perror("msgsnd to server failed");

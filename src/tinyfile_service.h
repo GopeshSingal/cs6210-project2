@@ -28,10 +28,12 @@ struct llnode* create_llnode(int id) {
 }
 
 struct llnode* add_llnode(struct llnode * tail, int id) {
+    // printf("CREATING NEW TASK\n");
     struct llnode* new_node = (struct llnode*)(malloc(sizeof(struct llnode)));
     new_node->recv_id = id;
     new_node->next = NULL;
     if (tail) {
+        // printf("moving tail for %d and new tail is %d\n", tail, new_node);
         tail->next = new_node;
     }
     return new_node;
@@ -44,10 +46,12 @@ int remove_llnode(struct llnode * head) {
     }
     return_id = head->recv_id;
     if (!head->next) {
+        printf("free2\n");
         free(head);
     } else {
         struct llnode* tmp = head;
         head = head->next;
+        printf("free3\n");
         free(tmp);
     }
     return return_id;
@@ -63,6 +67,7 @@ struct qnode {
     struct qnode* next;
     struct llnode* head;
     struct llnode* tail;
+    int size;
 };
 
 struct client_queue {
@@ -76,6 +81,9 @@ struct qnode* create_node(int id) {
     struct qnode* new_node = (struct qnode*)(malloc(sizeof(struct qnode)));
     new_node->recv_id = id;
     new_node->next = NULL;
+    new_node->head = NULL;
+    new_node->tail = NULL;
+    new_node->size = 0;
     return new_node;
 }
 
@@ -136,30 +144,38 @@ int dequeue(struct client_queue* queue) {
 
 int fake_dequeue(struct client_queue* queue) {
     int return_id;
-    if (queue->size == 0) {
-        return -1;
-    }
-    if (queue->front == queue->rear && queue->front->head && queue->front->head == queue->front->tail) {
-        // hash_map_delete(queue->front->recv_id);
-        return_id = remove_llnode(queue->front->head);
-        free(queue->front);
-        queue->size--;
-        queue->front = queue->rear = NULL;
-    } else {
-        return_id = remove_llnode(queue->front->head);
+    printf("queue size: %d\n", queue->size);
+    // if (queue->size == 0) {
+    //     return -1;
+    // }
+    // if (queue->front == queue->rear) {
+    //     // hash_map_delete(queue->front->recv_id);
+    //     printf("REMOVE1\n");
+    //     return_id = remove_llnode(queue->front->head);
+    //     if (!queue->front->head) {
+    //         printf("free1\n");
+    //         free(queue->front);
+    //         queue->size--;
+    //         queue->front = queue->rear = NULL;
+    //     }
+    // } else {
+        // printf("REMOVE2\n");
+        // return_id = remove_llnode(queue->front->head);
         struct qnode* tmp = queue->front;
         queue->front = queue->front->next;
-        if (!queue->front->head) {
-            // hash_map_delete(queue->front->recv_id);
-            queue->rear->next = queue->front;
-            printf("Freeing %d\n", tmp);
-            free(tmp);
-            queue->size--;
-        } else {
-            queue->rear = tmp;
-        }
-    }
-    return return_id;
+        queue->rear = tmp;
+        printf("front %d and rear %d\n", queue->front, queue->rear);
+        // if (!queue->front->head) {
+        //     // hash_map_delete(queue->front->recv_id);
+        //     queue->rear->next = queue->front;
+        //     printf("Freeing %d\n", tmp);
+        //     free(tmp);
+        //     queue->size--;
+        // } else {
+        //     queue->rear = tmp;
+        // }
+    // }
+    return 0;
 }
 
 typedef struct HashNode {
@@ -211,7 +227,7 @@ void hash_map_put(HashMap* map, int key, struct qnode* value) {
     unsigned int index = fnv1a_hash(key);
     HashNode* current = map->buckets[index];
     HashNode* prev = NULL;
-
+    // printf("putting value: %d\n", value);
     while (current != NULL) {
         if (current->key == key) {
             current->value = value;
