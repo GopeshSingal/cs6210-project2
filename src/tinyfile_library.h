@@ -1,8 +1,6 @@
 #ifndef __TINYFILE_LIBRARY_H
 #define __TINYFILE_LIBRARY_H
 
-#include <sys/_types/_key_t.h>
-
 #define SERVER_MTYPE 256
 #define SERVER_ACCESS_MTYPE 100
 #define QUEUE_MTYPE 512

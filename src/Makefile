@@ -8,7 +8,7 @@ all: libsnappyc.so $(OBJECTS)
 
 $(OBJECTS): %.o: %.c
 	# gcc $^ -o $@
-	gcc -g $^ tinyfile_library.c -o $@ -L./ -lsnappyc
+	gcc -g -w -pthread $^ tinyfile_library.c -o $@ -L./ -lsnappyc
 
 # Build snappyc_test.o, dependent on libsnappyc.so symlink
 
@@ -16,7 +16,9 @@ $(OBJECTS): %.o: %.c
 # set library path variable
 libsnappyc.so: libsnappyc.so.1
 	ln -sf ./libsnappyc.so.1 ./libsnappyc.so
-	@LD_LIBRARAY_PATH=$LD_LIBRARAY_PATH:./
+	# @export LD_LIBRARAY_PATH=$LD_LIBRARAY_PATH:./
+	chmod 755 ./libsnappyc.so
+	chmod 755 ./libsnappyc.so.1
 
 # Build snappy-c library and move to curr dir
 libsnappyc.so.1:

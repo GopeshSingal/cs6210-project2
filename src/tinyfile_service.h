@@ -54,8 +54,8 @@ typedef struct HashMap {
     HashNode* buckets[HASH_MAP_SIZE];
 } HashMap;
 
-uint32_t fnv1a_hash(uint32_t data) {
-    uint32_t hash = FNV_32_OFFSET_BASIS;
+long fnv1a_hash(long data) {
+    long hash = FNV_32_OFFSET_BASIS;
     for (int i = 0; i < 4; i++) {
         hash ^= (data & 0xFF);
         hash *= FNV_32_PRIME;
