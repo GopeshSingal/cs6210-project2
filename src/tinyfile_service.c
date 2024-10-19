@@ -19,6 +19,7 @@ void* segment_function(void *arg) {
     int recv_id = data->seg_id + 9;
     int msg_length, shm_id;
     int complete = 0;
+    int client_id = 0;
     message_t msg;
     memset(&msg, 0, sizeof(msg));
     msg.destination_id = data->seg_id;
@@ -28,6 +29,7 @@ void* segment_function(void *arg) {
             perror("msgrcv failed on thread");
             exit(1);
         }
+        client_id = msg.client_id;
         printf("Segment %d is active! Working on: %s\n", data->seg_id, msg.msg_text);
         if (msg.msg_text[0] ==  '\0' || msg.msg_text == NULL) {
             printf("Segment %d is skipping invalid input!\n", data->seg_id);
@@ -65,7 +67,6 @@ void* segment_function(void *arg) {
             memset(&msg, 0, sizeof(msg));
             msg.mtype = data->seg_id;
             result = append_chunks(result, shm_ptr->chunk_content, msg_length, server_shm_size);
-            // printf("%s\n", result);
             if (shm_ptr->is_final_chunk) {
                 finish = 1;
             }
@@ -88,13 +89,39 @@ void* segment_function(void *arg) {
         }
         chunk_input_buffer(compressed_data, compressed_size, chunk_size, chunk_buffers);
         free(compressed_data);
-
+        // Send compressed length back to client
+        msg.full_msg_length = compressed_size;
         strcpy(shm_ptr->chunk_content, "here");
-
         if (msgsnd(data->msg_id, &msg, sizeof(message_t) - sizeof(long), 0) == -1) {
             perror("msgsnd failed on thread second fail");
             exit(1);
         }
+
+        // * Send each chunk one-by-one
+        shm_ptr->is_final_chunk = 0;
+        for (int i = 0; i < num_chunks; i++) {
+            if (i == num_chunks - 1) {
+                shm_ptr->is_final_chunk = 1;
+            } else {
+                shm_ptr->is_final_chunk = 0;
+            }
+            my_copy_str(shm_ptr->chunk_content, chunk_buffers[i], server_shm_size);
+            // * Send notice that the shared memory is ready
+            if (msgsnd(data->msg_id, &msg, sizeof(message_t) - sizeof(long), 0) == -1) {
+                perror("msgsnd failed, chunk sender server");
+                exit(1);
+            }
+            free(chunk_buffers[i]);
+            // * Receive notice that the shared memory is ready (mainly used for synchronization between client and server)
+            if (msgrcv(data->msg_id, &msg, sizeof(message_t) - sizeof(long), recv_id, 0) == -1) {
+                perror("msgrcv failed, chunk sender server");
+                exit(1);
+            }
+            memset(&msg, 0, sizeof(msg));
+            msg.mtype = data->seg_id;
+        }
+        free(chunk_buffers);
+
         if (shmdt(shm_ptr) == -1) {
             perror("shmdt failed on thread");
             exit(1);
@@ -117,7 +144,6 @@ void* queue_function(void *arg) {
     queue_thread_data_t* data = (queue_thread_data_t*) arg;
     message_t msg;
     while (1) {
-        // printf("in queue func:\n");
         if (msgrcv(data->msg_id, &msg, sizeof(message_t) - sizeof(long), QUEUE_MTYPE, 0) == -1) {
             perror("msgrcv failed, queue thread");
             exit(1);
@@ -127,19 +153,8 @@ void* queue_function(void *arg) {
         if (!curr_qnode) {
             curr_qnode = fake_enqueue(data->fake_queue, msg.client_id);
             hash_map_put(q_map, msg.client_id, curr_qnode);
-            hash_map_display(q_map);
         }
-        struct llnode* tmp = add_llnode(curr_qnode->tail, msg.destination_id);
-        data->fake_queue->size++;
-        // printf("ADDING NODE TO: %d node %d and mtype: %d\n", curr_qnode, tmp, msg.destination_id);
-        curr_qnode->tail = tmp;
-        // printf("PREV TAIL: %d\n", curr_qnode->head);
-        if (!curr_qnode->head) {
-            // printf("SETTING HEAD\n");
-            curr_qnode->head = curr_qnode->tail;
-        }
-    //     printf("REAL NEW TAIL: %d head %d\n", curr_qnode->tail, curr_qnode->head);
-    //     printf("FAKE QUEUE SIZE %d\n", data->fake_queue->size);
+        add_llnode(curr_qnode, msg.destination_id);
     }
     return NULL;
 }
@@ -226,7 +241,6 @@ int main(int argc, char* argv[]) {
     queue_data.msg_id = msg_id;
     queue_data.queue = queue; // set up circular queue of client threads
     queue_data.fake_queue = fake_queue;
-    printf("SETTUP NEW QUEUE DATAT THREAD THING\n");
     if (pthread_create(&queue_thread, NULL, queue_function, &queue_data) != 0) {
         perror("queue_thread creation failed\n");
         exit(1);
@@ -237,16 +251,13 @@ int main(int argc, char* argv[]) {
     // * Develop function for assigning segment to client!
     while (1) {
         while (1) {
-            if (queue->size != 0) {
+            if (fake_queue->front != NULL && fake_queue->front->head != NULL) {
                 break;
             }
         }
-        int recv_id = dequeue(queue);
-        // printf("fake front pre dequeue: %d", fake_queue->front);
-        // int fake_recv_id = fake_dequeue(fake_queue);
-        // printf("fake recv id: %d\n", fake_recv_id);
+        int fake_recv_id = fake_dequeue(fake_queue, q_map);
 
-        msg_client.mtype = recv_id;
+        msg_client.mtype = fake_recv_id;
         msg_client.shm_size = server_shm_size;
 
         int found = 0;

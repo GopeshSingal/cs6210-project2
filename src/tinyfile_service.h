@@ -26,36 +26,6 @@ struct llnode* create_llnode(int id) {
     new_node->next = NULL;
     return new_node;
 }
-
-struct llnode* add_llnode(struct llnode * tail, int id) {
-    // printf("CREATING NEW TASK\n");
-    struct llnode* new_node = (struct llnode*)(malloc(sizeof(struct llnode)));
-    new_node->recv_id = id;
-    new_node->next = NULL;
-    if (tail) {
-        // printf("moving tail for %d and new tail is %d\n", tail, new_node);
-        tail->next = new_node;
-    }
-    return new_node;
-}
-
-int remove_llnode(struct llnode * head) {
-    int return_id;
-    if (!head) {
-        return -1;
-    }
-    return_id = head->recv_id;
-    if (!head->next) {
-        printf("free2\n");
-        free(head);
-    } else {
-        struct llnode* tmp = head;
-        head = head->next;
-        printf("free3\n");
-        free(tmp);
-    }
-    return return_id;
-}
 typedef struct queue_thread_data {
     int msg_id;
     struct client_queue* queue;
@@ -75,9 +45,59 @@ struct client_queue {
     struct qnode* rear;
     int size;
 };
+typedef struct HashNode {
+    int key;
+    struct qnode* value;
+    struct HashNode* next;
+} HashNode;
+typedef struct HashMap {
+    HashNode* buckets[HASH_MAP_SIZE];
+} HashMap;
+
+uint32_t fnv1a_hash(uint32_t data) {
+    uint32_t hash = FNV_32_OFFSET_BASIS;
+    for (int i = 0; i < 4; i++) {
+        hash ^= (data & 0xFF);
+        hash *= FNV_32_PRIME;
+        data >>= 8;            
+    }
+    return hash % HASH_MAP_SIZE;
+}
+
+void add_llnode(struct qnode* node, int id) {
+    if (!node) {
+        return;
+    }
+    node->size++;
+    struct llnode* new_node = create_llnode(id);
+    if (!node->head) {
+        node->head = new_node;
+    }
+    if (node->tail) {
+        node->tail->next = new_node;
+    }
+    node->tail = new_node;
+    return;
+}
+
+int remove_llnode(struct qnode* node) {
+    if (!node) {
+        return -1;
+    }
+    node->size--;
+    int return_id;
+    return_id = node->head->recv_id;
+    if (!node->head->next) {
+        free(node->head);
+    } else {
+        struct llnode* tmp = node->head;
+        node->head = node->head->next;
+        free(tmp);
+    }
+    return return_id;
+}
 
 struct qnode* create_node(int id) {
-    printf("create node: %d\n", id);
     struct qnode* new_node = (struct qnode*)(malloc(sizeof(struct qnode)));
     new_node->recv_id = id;
     new_node->next = NULL;
@@ -106,21 +126,6 @@ void enqueue(struct client_queue* queue, int id) {
     }
     queue->size++;
 }
-struct qnode* fake_enqueue(struct client_queue* queue, int id) {
-    struct qnode* node = create_node(id);
-    node->head = NULL;
-    node->tail = NULL;
-    if (queue->rear == NULL) {
-        queue->front = queue->rear = node;
-        queue->rear->next = queue->front;
-    } else {
-        queue->rear->next = node;
-        queue->rear = node;
-        queue->rear->next = queue->front;
-    }
-    queue->size++;
-    return node;
-}
 
 int dequeue(struct client_queue* queue) {
     int return_id;
@@ -140,63 +145,6 @@ int dequeue(struct client_queue* queue) {
     }
     queue->size--;
     return return_id;
-}
-
-int fake_dequeue(struct client_queue* queue) {
-    int return_id;
-    printf("queue size: %d\n", queue->size);
-    // if (queue->size == 0) {
-    //     return -1;
-    // }
-    // if (queue->front == queue->rear) {
-    //     // hash_map_delete(queue->front->recv_id);
-    //     printf("REMOVE1\n");
-    //     return_id = remove_llnode(queue->front->head);
-    //     if (!queue->front->head) {
-    //         printf("free1\n");
-    //         free(queue->front);
-    //         queue->size--;
-    //         queue->front = queue->rear = NULL;
-    //     }
-    // } else {
-        // printf("REMOVE2\n");
-        // return_id = remove_llnode(queue->front->head);
-        struct qnode* tmp = queue->front;
-        queue->front = queue->front->next;
-        queue->rear = tmp;
-        printf("front %d and rear %d\n", queue->front, queue->rear);
-        // if (!queue->front->head) {
-        //     // hash_map_delete(queue->front->recv_id);
-        //     queue->rear->next = queue->front;
-        //     printf("Freeing %d\n", tmp);
-        //     free(tmp);
-        //     queue->size--;
-        // } else {
-        //     queue->rear = tmp;
-        // }
-    // }
-    return 0;
-}
-
-typedef struct HashNode {
-    int key;
-    struct qnode* value;
-    struct HashNode* next;
-} HashNode;
-typedef struct HashMap {
-    HashNode* buckets[HASH_MAP_SIZE];
-} HashMap;
-
-uint32_t fnv1a_hash(uint32_t data) {
-    uint32_t hash = FNV_32_OFFSET_BASIS;
-
-    for (int i = 0; i < 4; i++) {
-        hash ^= (data & 0xFF);
-        hash *= FNV_32_PRIME;
-        data >>= 8;            
-    }
-
-    return hash % HASH_MAP_SIZE;
 }
 
 HashNode* create_hash_node(int key, struct qnode* value) {
@@ -227,7 +175,6 @@ void hash_map_put(HashMap* map, int key, struct qnode* value) {
     unsigned int index = fnv1a_hash(key);
     HashNode* current = map->buckets[index];
     HashNode* prev = NULL;
-    // printf("putting value: %d\n", value);
     while (current != NULL) {
         if (current->key == key) {
             current->value = value;
@@ -236,7 +183,6 @@ void hash_map_put(HashMap* map, int key, struct qnode* value) {
         prev = current;
         current = current->next;
     }
-
     HashNode* new_node = create_hash_node(key, value);
     if (prev == NULL) {
         map->buckets[index] = new_node;
@@ -248,15 +194,12 @@ void hash_map_put(HashMap* map, int key, struct qnode* value) {
 struct qnode* hash_map_get(HashMap* map, int key) {
     unsigned int index = fnv1a_hash(key); 
     HashNode* current = map->buckets[index];
-
     while (current != NULL) {
         if (current->key == key) {
-            printf("returning qnode %d\n", current->value);
             return current->value;
         }
         current = current->next;
     }
-
     return NULL;
 }
 
@@ -264,7 +207,6 @@ void hash_map_delete(HashMap* map, int key) {
     unsigned int index = fnv1a_hash(key);
     HashNode* current = map->buckets[index];
     HashNode* prev = NULL;
-
     while (current != NULL) {
         if (current->key == key) {
             if (prev == NULL) {
@@ -278,32 +220,44 @@ void hash_map_delete(HashMap* map, int key) {
         prev = current;
         current = current->next;
     }
-
-    printf("Key %d not found in the HashMap.\n", key);
 }
 
-void free_hash_map(HashMap* map) {
-    for (int i = 0; i < HASH_MAP_SIZE; i++) {
-        HashNode* current = map->buckets[i];
-        while (current != NULL) {
-            HashNode* next = current->next;
-            free(current);
-            current = next;
-        }
+// Fake enqueue adds a node to the respective queue for QoS
+struct qnode* fake_enqueue(struct client_queue* queue, int id) {
+    struct qnode* node = create_node(id);
+    node->head = NULL;
+    node->tail = NULL;
+    if (queue->rear == NULL) {
+        queue->front = queue->rear = node;
+        queue->rear->next = queue->front;
+    } else {
+        queue->rear->next = node;
+        queue->rear = node;
+        queue->rear->next = queue->front;
     }
-    free(map);
+    queue->size++;
+    return node;
 }
 
-void hash_map_display(HashMap* map) {
-    for (int i = 0; i < HASH_MAP_SIZE; i++) {
-        HashNode* current = map->buckets[i];
-        printf("Bucket %d: ", i);
-        while (current != NULL) {
-            printf("(%d, %d) -> ", current->key, current->value);
-            current = current->next;
-        }
-        printf("NULL\n");
+// Fake dequeue removes the node from head and rotates queue for QoS
+int fake_dequeue(struct client_queue* queue, struct HashMap* q_map) {
+    int return_id = -1;
+    if (queue->size == 0) {
+        return return_id;
     }
+    if (queue->front->size > 0) {
+        return_id = remove_llnode(queue->front);
+    }
+    if (queue->front->size == 0) {
+        int client_id = queue->front->recv_id;
+        hash_map_delete(q_map, client_id);
+        dequeue(queue);
+    } else {
+        struct qnode* tmp = queue->front;
+        queue->front = queue->front->next;
+        queue->rear = tmp;
+    }
+    return return_id;
 }
 
 extern int open[MAX_THREADS];
