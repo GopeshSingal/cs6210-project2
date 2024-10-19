@@ -16,9 +16,6 @@ $(OBJECTS): %.o: %.c
 # set library path variable
 libsnappyc.so: libsnappyc.so.1
 	ln -sf ./libsnappyc.so.1 ./libsnappyc.so
-	# @export LD_LIBRARAY_PATH=$LD_LIBRARAY_PATH:./
-	chmod 755 ./libsnappyc.so
-	chmod 755 ./libsnappyc.so.1
 
 # Build snappy-c library and move to curr dir
 libsnappyc.so.1:

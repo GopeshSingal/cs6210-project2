@@ -105,7 +105,7 @@ void* segment_function(void *arg) {
             } else {
                 shm_ptr->is_final_chunk = 0;
             }
-            my_copy_str(shm_ptr->chunk_content, chunk_buffers[i], server_shm_size);
+            strncpy(shm_ptr->chunk_content, chunk_buffers[i], server_shm_size);
             // * Send notice that the shared memory is ready
             if (msgsnd(data->msg_id, &msg, sizeof(message_t) - sizeof(long), 0) == -1) {
                 perror("msgsnd failed, chunk sender server");
