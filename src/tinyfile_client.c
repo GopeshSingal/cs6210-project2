@@ -89,7 +89,7 @@ void* async_function(void* arg) {
     // * Initialize message, then send and receive with server
     message_t msg;
     memset(&msg, 0, sizeof(msg));
-    msg.mtype = SERVER_ACCESS_MTYPE;
+    msg.mtype = QUEUE_ACCESS;
     msg.full_msg_length = strlen(buffer);
     msg.shm_id = 0;
 

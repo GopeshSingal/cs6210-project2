@@ -3,6 +3,7 @@
 
 #include <sys/_types/_key_t.h>
 
+#define QUEUE_ACCESS 9
 #define SERVER_MTYPE 256
 #define SERVER_ACCESS_MTYPE 100
 #define MAX_SHM_SIZE 8192
@@ -22,6 +23,9 @@ typedef struct message {
     int shm_id;
     int full_msg_length;
     int destination_id;
+    int return_loc;
+    int linking;
+    int val;
 } message_t;
 
 extern void chunk_input_buffer(const char *buffer, size_t buffer_size, size_t chunk_size, char **chunk_buffers);

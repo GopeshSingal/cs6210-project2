@@ -13,6 +13,44 @@
 int open[MAX_THREADS] = {1, 1, 1, 1, 1, 1, 1, 1};
 int server_shm_size = SHM_SIZE;
 
+void* queue_function(void *arg) {
+    queue_data_t* data = (queue_data_t*) arg;
+    message_t msg;
+    while (1) {
+        if (msgrcv(data->msg_id, &msg, sizeof(message_t) - sizeof(long), QUEUE_ACCESS, 0) == -1) {
+            perror("msgrcv failed on queue");
+            exit(1);
+        }
+        int return_loc = msg.return_loc;
+        memset(&msg, 0, sizeof(msg));
+        msg.mtype = return_loc;
+        if (msgsnd(data->msg_id, &msg, sizeof(message_t) - sizeof(long), 0) == -1) {
+            perror("msgsnd failed on queue");
+            exit(1);
+        }
+        int list_complete = 0;
+        struct reqnode_list* list = (struct reqnode_list*)(malloc(sizeof(struct reqnode_list)));
+        while (list_complete == 0) {
+            if (msgrcv(data->msg_id, &msg, sizeof(message_t) - sizeof(long), QUEUE_ACCESS, 0) == -1) {
+                perror("msgrcv failed on queue");
+                exit(1);
+            }
+            if (msg.linking != 0) {
+                list_complete = 1;
+            }
+            add_reqnode(msg.val, list);
+            memset(&msg, 0, sizeof(msg));
+            msg.mtype = return_loc;
+            if (msgsnd(data->msg_id, &msg, sizeof(message_t) - sizeof(long),0) == -1) {
+                perror("msgsnd failed on list making");
+                exit(1);
+            }
+        }
+        enqueue(return_loc, list, data->queue);
+    }
+    return NULL;
+}
+
 void* segment_function(void *arg) {
     segment_t* data = (segment_t*) arg;
     int recv_id = data->seg_id * 9;
